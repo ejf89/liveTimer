@@ -9,6 +9,12 @@ export const StudyTimer: StudyTimerApi = {
   end: async (_id: string) => {},
   endAll: async () => {},
   getActiveIds: async () => [],
+  getActiveSessions: async () => [],
 };
 
-export type { StartOptions, UpdateOptions, StudyTimerApi } from './src/StudyTimer.types';
+export type {
+  StartOptions,
+  UpdateOptions,
+  ActiveSession,
+  StudyTimerApi,
+} from './src/StudyTimer.types';

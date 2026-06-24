@@ -1,5 +1,6 @@
 import ActivityKit
 import ExpoModulesCore
+import os
 
 // Bridge between React Native and ActivityKit. The JS layer owns the timer state
 // machine; this module only translates typed calls into Live Activity lifecycle
@@ -60,6 +61,13 @@ public class StudyTimerModule: Module {
             guard #available(iOS 16.2, *) else { return [] }
             return LiveActivityController.activeIds()
         }
+
+        // Full state of running activities, for launch reconciliation (adopt a
+        // Live Activity that survived an app kill).
+        AsyncFunction("getActiveSessions") { () -> [[String: Any]] in
+            guard #available(iOS 16.2, *) else { return [] }
+            return LiveActivityController.activeSessions()
+        }
     }
 }
 
@@ -89,6 +97,8 @@ internal final class LiveActivitiesDisabledException: Exception, @unchecked Send
 
 @available(iOS 16.2, *)
 enum LiveActivityController {
+    private static let log = Logger(subsystem: "com.ejf89.livetimer", category: "LiveActivity")
+
     static var areEnabled: Bool {
         ActivityAuthorizationInfo().areActivitiesEnabled
     }
@@ -110,12 +120,14 @@ enum LiveActivityController {
             pausedElapsed: 0
         )
         // `request` is synchronous + throwing; updates/ends are async.
-        // pushType nil = local updates only (no APNs).
+        // pushType nil = local updates only (no APNs). staleDate marks the activity
+        // stale if a session is left running and forgotten (8h out).
         let activity = try Activity.request(
             attributes: attributes,
-            content: ActivityContent(state: state, staleDate: nil),
+            content: ActivityContent(state: state, staleDate: Date().addingTimeInterval(8 * 3600)),
             pushType: nil
         )
+        log.info("start id=\(activity.id, privacy: .public) name=\(options.name, privacy: .public)")
         return activity.id
     }
 
@@ -132,16 +144,35 @@ enum LiveActivityController {
     static func end(id: String) async {
         guard let activity = activity(for: id) else { return }
         await activity.end(nil, dismissalPolicy: .immediate)
+        log.info("end id=\(id, privacy: .public)")
     }
 
     static func endAll() async {
-        for activity in Activity<StudyAttributes>.activities {
+        let activities = Activity<StudyAttributes>.activities
+        for activity in activities {
             await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        if !activities.isEmpty {
+            log.info("endAll cleared=\(activities.count)")
         }
     }
 
     static func activeIds() -> [String] {
         Activity<StudyAttributes>.activities.map { $0.id }
+    }
+
+    static func activeSessions() -> [[String: Any]] {
+        Activity<StudyAttributes>.activities.map { activity in
+            let state = activity.content.state
+            return [
+                "id": activity.id,
+                "name": activity.attributes.sessionName,
+                "goalSeconds": activity.attributes.goalSeconds as Any,
+                "startAnchor": state.startAnchor.timeIntervalSince1970,
+                "isPaused": state.isPaused,
+                "pausedElapsed": state.pausedElapsed,
+            ]
+        }
     }
 
     private static func activity(for id: String) -> Activity<StudyAttributes>? {

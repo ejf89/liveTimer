@@ -115,12 +115,13 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [x] Reproducibility (pulled fwd): README (LLM-runnable) + expo-dev-client + clean-clone test passed
 - [x] Commit M4
 
-### M5 — Edge cases
-- [ ] App-killed = **persists + keeps ticking** (decided, CLAUDE.md); reconcile on relaunch (end orphans not matching a restored session)
-- [ ] Single-activity invariant (serialize on main actor; await end before next start — kill zombies on rapid start/stop)
-- [ ] `staleDate`; immediate/ended dismissal so it leaves the lock screen promptly
-- [ ] Debug panel (`getActiveIds()` count + last action) + `os_log` observability
-- [ ] Run the edge-case test matrix (see below); commit
+### M5 — Edge cases  ✅ DONE
+- [x] App-killed = persists + keeps ticking; relaunch **adopts** the surviving activity via `getActiveSessions()` (verified: 0:04→0:38 across a kill, restored)
+- [x] Single-activity invariant: `endAll` on start → rapid start/stop leaves 0 activities (verified via 6× idb stress loop, debug shows count 0)
+- [x] `staleDate` (8h) + `.immediate` dismissal so it leaves the lock screen promptly
+- [x] Debug readout (`getActiveIds` count + last action) in the app + `os_log` lifecycle logging
+- [x] Backgrounded → keeps ticking (on-device rendering, verified)
+- [x] Commit M5
 
 ### M6 — Polish + docs + tests
 - [ ] UI pass
@@ -174,5 +175,6 @@ screen + all Dynamic Island presentations, on-device ticking); in-app HH:MM:SS; 
 + "Paused"; Resume continues; Stop removes it; progress ring/bar toward goal. Reproducibility
 verified (clean-clone test passed; README + expo-dev-client added). Confirmed valid Expo SDK 56
 project. One env issue (stray `~/node_modules`) found + fixed by user.
-**Next:** M5 — edge cases: launch reconciliation, no-zombie on rapid start/stop, background/kill
-behavior, `staleDate`, debug panel + `os_log`.
+**M5 DONE.** Edge cases verified on sim: killed→persists→relaunch adopts the activity; rapid
+start/stop → 0 zombies; backgrounded keeps ticking; debug readout + os_log + staleDate added.
+**Next:** M6 — polish, Jest tests for timer math, finalize README/DISCUSSION, lint/format.

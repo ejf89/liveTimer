@@ -6,4 +6,9 @@ import type { StudyTimerApi } from './src/StudyTimer.types';
 // on those platforms instead, so this requireNativeModule only runs on iOS.
 export const StudyTimer = requireNativeModule<StudyTimerApi>('StudyTimer');
 
-export type { StartOptions, UpdateOptions, StudyTimerApi } from './src/StudyTimer.types';
+export type {
+  StartOptions,
+  UpdateOptions,
+  ActiveSession,
+  StudyTimerApi,
+} from './src/StudyTimer.types';

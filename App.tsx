@@ -15,7 +15,7 @@ import { formatHHMMSS, goalProgress } from './lib/format';
 import { StudyTimer } from './modules/study-timer';
 
 export default function App() {
-  const { status, elapsed, name, setName, goalSeconds, start, pause, resume, stop } =
+  const { status, elapsed, name, setName, goalSeconds, debug, start, pause, resume, stop } =
     useTimer();
   const [enabled, setEnabled] = useState(true);
 
@@ -119,6 +119,10 @@ export default function App() {
         </View>
       )}
 
+      <Text style={styles.debug}>
+        live activities: {debug.activeCount} · last: {debug.lastAction}
+      </Text>
+
       <StatusBar style="auto" />
     </View>
   );
@@ -168,4 +172,5 @@ const styles = StyleSheet.create({
   pause: { backgroundColor: '#ff9500' },
   stop: { backgroundColor: '#ff3b30' },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  debug: { marginTop: 8, color: '#bbb', fontSize: 12, fontVariant: ['tabular-nums'] },
 });
