@@ -10,54 +10,39 @@ import {
   View,
 } from 'react-native';
 
+import { useTimer } from './hooks/useTimer';
+import { formatHHMMSS, goalProgress } from './lib/format';
 import { StudyTimer } from './modules/study-timer';
 
-const DEFAULT_GOAL_SECONDS = 1500; // 25:00
-
 export default function App() {
-  const [name, setName] = useState('Chapter 5 Review');
-  const [activityId, setActivityId] = useState<string | null>(null);
+  const { status, elapsed, name, setName, goalSeconds, start, pause, resume, stop } =
+    useTimer();
   const [enabled, setEnabled] = useState(true);
 
-  // Refs let the URL handler (registered once) read the latest values.
   const nameRef = useRef(name);
   nameRef.current = name;
-  const activityIdRef = useRef(activityId);
-  activityIdRef.current = activityId;
 
   useEffect(() => {
     setEnabled(StudyTimer.areEnabled());
   }, []);
 
-  const running = activityId !== null;
+  const idle = status === 'idle';
+  const paused = status === 'paused';
+  const progress = goalProgress(elapsed, goalSeconds);
 
-  const startSession = useCallback(async (nameOverride?: string) => {
-    const sessionName = (nameOverride ?? nameRef.current).trim() || 'Study Session';
-    try {
-      const sessionId = `session-${Date.now()}`;
-      // start() returns the ActivityKit-assigned activity id — that's what
-      // update()/end() match on, so track it (not our session id).
-      const activityKitId = await StudyTimer.start({
-        id: sessionId,
-        name: sessionName,
-        startAnchor: Date.now() / 1000, // epoch seconds
-        goalSeconds: DEFAULT_GOAL_SECONDS,
-      });
-      if (nameOverride) setName(sessionName);
-      setActivityId(activityKitId);
-    } catch (e) {
-      Alert.alert('Could not start', String(e));
-    }
-  }, []);
+  const startSession = useCallback(
+    async (nameOverride?: string) => {
+      const sessionName = (nameOverride ?? nameRef.current).trim() || 'Study Session';
+      try {
+        await start(sessionName);
+      } catch (e) {
+        Alert.alert('Could not start', String(e));
+      }
+    },
+    [start],
+  );
 
-  const stopSession = useCallback(async () => {
-    const id = activityIdRef.current;
-    if (!id) return;
-    await StudyTimer.end(id);
-    setActivityId(null);
-  }, []);
-
-  // URL control for testing/deep-linking: livetimer://start?name=... and livetimer://stop
+  // URL control for testing/deep-linking: livetimer://start?name=... | stop | pause | resume
   useEffect(() => {
     function handleUrl(url: string | null) {
       if (!url) return;
@@ -71,13 +56,17 @@ export default function App() {
           .find(([k]) => k === 'name')?.[1];
         startSession(nameParam ? decodeURIComponent(nameParam) : undefined);
       } else if (action === 'stop') {
-        stopSession();
+        stop();
+      } else if (action === 'pause') {
+        pause();
+      } else if (action === 'resume') {
+        resume();
       }
     }
     const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
     Linking.getInitialURL().then(handleUrl);
     return () => sub.remove();
-  }, [startSession, stopSession]);
+  }, [startSession, stop, pause, resume]);
 
   return (
     <View style={styles.container}>
@@ -89,26 +78,45 @@ export default function App() {
         </Text>
       )}
 
-      <TextInput
-        style={styles.input}
-        value={name}
-        onChangeText={setName}
-        placeholder="Session name"
-        editable={!running}
-      />
+      {idle ? (
+        <TextInput
+          style={styles.input}
+          value={name}
+          onChangeText={setName}
+          placeholder="Session name"
+        />
+      ) : (
+        <Text style={styles.sessionName}>{name}</Text>
+      )}
 
-      <Text style={styles.status}>
-        {running ? 'Live Activity running' : 'No active session'}
+      <Text style={styles.time}>{formatHHMMSS(elapsed)}</Text>
+
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${progress * 100}%` }]} />
+      </View>
+      <Text style={styles.goalLabel}>
+        {paused ? 'Paused' : `Goal ${formatHHMMSS(goalSeconds)}`}
       </Text>
 
-      {running ? (
-        <Pressable style={[styles.button, styles.stop]} onPress={() => stopSession()}>
-          <Text style={styles.buttonText}>Stop</Text>
-        </Pressable>
-      ) : (
+      {idle ? (
         <Pressable style={[styles.button, styles.start]} onPress={() => startSession()}>
           <Text style={styles.buttonText}>Start New Session</Text>
         </Pressable>
+      ) : (
+        <View style={styles.row}>
+          {paused ? (
+            <Pressable style={[styles.button, styles.flex, styles.start]} onPress={resume}>
+              <Text style={styles.buttonText}>Resume</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={[styles.button, styles.flex, styles.pause]} onPress={pause}>
+              <Text style={styles.buttonText}>Pause</Text>
+            </Pressable>
+          )}
+          <Pressable style={[styles.button, styles.flex, styles.stop]} onPress={stop}>
+            <Text style={styles.buttonText}>Stop</Text>
+          </Pressable>
+        </View>
       )}
 
       <StatusBar style="auto" />
@@ -125,8 +133,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 16,
   },
-  title: { fontSize: 28, fontWeight: '700' },
+  title: { fontSize: 22, fontWeight: '600', color: '#666' },
   warning: { color: '#b00020', textAlign: 'center' },
+  sessionName: { fontSize: 22, fontWeight: '700' },
   input: {
     width: '100%',
     borderWidth: 1,
@@ -135,15 +144,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
+    textAlign: 'center',
   },
-  status: { color: '#666', fontSize: 15 },
-  button: {
+  time: {
+    fontSize: 64,
+    fontWeight: '200',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 1,
+  },
+  track: {
     width: '100%',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#eee',
+    overflow: 'hidden',
   },
+  fill: { height: '100%', backgroundColor: '#0a84ff', borderRadius: 3 },
+  goalLabel: { color: '#888', fontSize: 14 },
+  row: { flexDirection: 'row', gap: 12, width: '100%' },
+  flex: { flex: 1 },
+  button: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', width: '100%' },
   start: { backgroundColor: '#0a84ff' },
+  pause: { backgroundColor: '#ff9500' },
   stop: { backgroundColor: '#ff3b30' },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
 });

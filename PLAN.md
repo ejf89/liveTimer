@@ -92,11 +92,19 @@ StudyTimer.getActiveIds(): Promise<string[]>
   `scratchpad/idbvenv/bin/idb`; tap by accessibility frame via `idb ui describe-all`.
 - Custom-scheme `openurl` shows an "Open in app?" prompt (needs a tap); use idb taps for automation.
 
-### M3 — Real-time ticking + pause/resume display
-- [ ] `Text(timerInterval:)` on-device ticking
-- [ ] Pause freezes time + shows "Paused"; resume continues; `update()` wired
-- [ ] HH:MM:SS in RN UI; useTimer hook
-- [ ] Screenshot (running + paused); commit
+### M3 — Real-time ticking + pause/resume display  ✅ DONE
+- [x] `Text(timerInterval:)` on-device ticking; `ElapsedText` view (running=timerInterval, paused=static)
+- [x] Pause freezes time + shows "Paused"; resume continues; `update()` wired
+- [x] HH:MM:SS in RN UI; `useTimer` hook (state machine + startAnchor math) + `lib/format.ts`
+- [x] Goal progress bar (lock screen + app) via `ProgressView(timerInterval:)`
+- [x] URL control extended: pause/resume; fixed lock-screen `2:--` truncation
+- [x] Verified on sim: in-app count-up, pause freezes, resume continues, lock screen + island reflect paused
+- [x] Commit M3
+
+**M3 carryover (→ M4 polish):**
+- Compact Dynamic Island paused time truncates (`00:0…`) — use compact M:SS or pause glyph.
+- Lock-screen time/progress-bar spacing slightly tight; "Paused" label position.
+- Expanded Dynamic Island + progress *ring* still to do (M4 proper).
 
 ### M4 — Dynamic Island + progress ring
 - [ ] Compact (name truncated + time), expanded (full name + time + progress ring), minimal (elapsed)
@@ -157,9 +165,9 @@ xcrun simctl spawn booted log stream --predicate 'process == "StudyWidget"'
 
 ## Current status
 
-**M1 + M2 DONE.** Full vertical slice works on the iPhone 17 Pro sim: Start shows the Live
-Activity (lock-screen banner + Dynamic Island compact, ticking on-device while backgrounded),
-Stop removes it. Hand-written Expo module bridge + typed TS API in place; idb set up for
-autonomous UI testing; one real id-handling bug caught + fixed (logged in DISCUSSION.md).
-**Next:** M3 — `useTimer` hook + in-app HH:MM:SS display + Pause/Resume wired to `update()`
-(freeze on pause, resume continues), and fix the lock-screen time layout (`2:--` quirk).
+**M1–M3 DONE.** Full timer works on the iPhone 17 Pro sim: Start shows the Live Activity
+(lock screen + Dynamic Island, on-device ticking); in-app HH:MM:SS counts up; Pause freezes
++ "Paused"; Resume continues; Stop removes it. `useTimer` hook owns the state machine; bridge
++ typed TS API done; idb drives autonomous UI tests; lock-screen `2:--` fixed.
+**Next:** M4 — Dynamic Island three presentations (compact/expanded/minimal) + progress *ring*;
+clean up compact-trailing width + lock-screen spacing.
