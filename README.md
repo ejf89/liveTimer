@@ -46,7 +46,7 @@ simulator: `npx expo run:ios --device "iPhone 17 Pro"`.
 1. Enter a **session name** and tap **Start New Session** → a Live Activity appears.
 2. The in-app timer counts up in **HH:MM:SS**; **Pause/Resume** and **Stop** control it.
 3. **See the Live Activity:**
-   - **Lock screen:** in the Simulator press **⌘L** (or *Device → Lock*) → the banner shows the
+   - **Lock screen:** in the Simulator press **⌘L** (or _Device → Lock_) → the banner shows the
      session name, elapsed time, and progress bar.
    - **Dynamic Island:** leave the app (swipe to home / open another app). The compact pill shows
      the icon + time; **long-press** it to see the expanded view (name, time, progress ring).

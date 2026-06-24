@@ -4,6 +4,7 @@
 > architecture decisions, what was hardest, what the AI got wrong, and what would break at scale.
 
 ## Architecture decisions
+
 _(to be expanded — see CLAUDE.md for canonical invariants)_
 
 - **On-device ticking via `Text(timerInterval:)`** instead of per-second JS pushes — the
@@ -12,16 +13,18 @@ _(to be expanded — see CLAUDE.md for canonical invariants)_
   bridge is the deliverable.
 - **`@bacons/apple-targets`** for reproducible widget-target generation across `prebuild`.
 - **Compact Dynamic Island shows icon + time, not the name.** The compact slots flanking the
-  camera can't fit a readable session name *and* a full timer (the name forced the timer to
+  camera can't fit a readable session name _and_ a full timer (the name forced the timer to
   truncate to "1:--"). The full name lives in the expanded + lock-screen presentations, matching
   how Apple's own timer apps behave. (Documented assumption per the spec.)
 - **Goal defaults to 5:00** (a focus sprint) so the progress ring/bar fills visibly.
 
 ## What was hardest
+
 - Driving Live Activities in the simulator without accessibility/`idb` taps — solved by
   installing `idb` + adding `livetimer://` URL control for scripted start/stop.
 
 ## What the AI got wrong (logged live)
+
 - **Expo `AsyncFunction` doesn't take Swift `async throws` closures.** First pass wrote
   `AsyncFunction("start") { (o) async throws -> String in ... }`; the compiler rejected it
   ("cannot pass function of type 'async throws -> String' to parameter expecting synchronous
@@ -37,5 +40,6 @@ _(to be expanded — see CLAUDE.md for canonical invariants)_
   stale `cd` persisted), so Expo resolved the wrong project root; re-ran from repo root.
 
 ## What would break at scale / what I'd improve
+
 - Local updates only; server-driven updates would need ActivityKit **push tokens + APNs**.
 - Two synced `StudyAttributes` copies — a shared local Swift package would remove the duplication.

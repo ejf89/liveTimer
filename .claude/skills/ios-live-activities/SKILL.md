@@ -5,7 +5,7 @@ description: Patterns for building iOS Live Activities (ActivityKit + WidgetKit/
 
 # iOS Live Activities in Expo/React Native
 
-How to build and bridge a Live Activity in *this* project. Patterns verified against the
+How to build and bridge a Live Activity in _this_ project. Patterns verified against the
 Expo SDK 56 Modules API and Apple's ActivityKit docs. Read alongside the invariants in
 `CLAUDE.md` — this skill shows the correct API shapes; CLAUDE.md says which behaviors are
 non-negotiable.
@@ -65,6 +65,7 @@ for activity in Activity<StudyAttributes>.activities {
 ```
 
 Key facts:
+
 - `Activity.request` is `throws` + `async`. `update`/`end` are `async` (not throwing).
 - `pushType: nil` for local-only. `.token` is for APNs push updates (scale; out of scope).
 - `dismissalPolicy`: `.immediate`, `.default`, or `.after(Date)`.
@@ -86,6 +87,7 @@ Text(formatHHMMSS(context.state.pausedElapsed))
 ```
 
 Anchor math (JS owns it; see CLAUDE.md):
+
 - Running → widget ticks from `startAnchor`.
 - Pause → `pausedElapsed = now − startAnchor`; show frozen `pausedElapsed` + "Paused".
 - Resume → `startAnchor = now − pausedElapsed`; ticking resumes at the right value.
@@ -167,7 +169,7 @@ struct StartOptions: Record {
   and the plugin config, then `npx expo prebuild -p ios --clean`.
 - **Activity starts but widget never renders:** attributes type drift between the two copies
   (name or Codable shape differs), or the widget bundle didn't include the activity.
-- **Three copies of `StudyAttributes`:** `_shared/` links to app target *and* widget. If no
+- **Three copies of `StudyAttributes`:** `_shared/` links to app target _and_ widget. If no
   app-target Swift imports it, move it to plain `targets/widget/` membership → exactly two
   copies (widget + module pod).
 - **Zombies after rapid start/stop:** not awaiting `end` before the next `start`, or not

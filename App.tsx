@@ -1,30 +1,27 @@
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useCallback, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useTimer } from './hooks/useTimer';
+import { useUrlControl } from './hooks/useUrlControl';
 import { formatHHMMSS, goalProgress } from './lib/format';
 import { StudyTimer } from './modules/study-timer';
 
 export default function App() {
-  const { status, elapsed, name, setName, goalSeconds, debug, start, pause, resume, stop } =
-    useTimer();
-  const [enabled, setEnabled] = useState(true);
-
-  const nameRef = useRef(name);
-  nameRef.current = name;
-
-  useEffect(() => {
-    setEnabled(StudyTimer.areEnabled());
-  }, []);
+  const {
+    status,
+    elapsed,
+    name,
+    setName,
+    goalSeconds,
+    debug,
+    start,
+    pause,
+    resume,
+    stop,
+  } = useTimer();
+  // areEnabled() is a synchronous native getter, so read it once at first render.
+  const [enabled] = useState(() => StudyTimer.areEnabled());
 
   const idle = status === 'idle';
   const paused = status === 'paused';
@@ -32,41 +29,17 @@ export default function App() {
 
   const startSession = useCallback(
     async (nameOverride?: string) => {
-      const sessionName = (nameOverride ?? nameRef.current).trim() || 'Study Session';
+      const sessionName = (nameOverride ?? name).trim() || 'Study Session';
       try {
         await start(sessionName);
       } catch (e) {
         Alert.alert('Could not start', String(e));
       }
     },
-    [start],
+    [name, start],
   );
 
-  // URL control for testing/deep-linking: livetimer://start?name=... | stop | pause | resume
-  useEffect(() => {
-    function handleUrl(url: string | null) {
-      if (!url) return;
-      const match = url.match(/^livetimer:\/\/([^?]+)(?:\?(.*))?$/);
-      if (!match) return;
-      const [, action, query] = match;
-      if (action === 'start') {
-        const nameParam = (query ?? '')
-          .split('&')
-          .map((kv) => kv.split('='))
-          .find(([k]) => k === 'name')?.[1];
-        startSession(nameParam ? decodeURIComponent(nameParam) : undefined);
-      } else if (action === 'stop') {
-        stop();
-      } else if (action === 'pause') {
-        pause();
-      } else if (action === 'resume') {
-        resume();
-      }
-    }
-    const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
-    Linking.getInitialURL().then(handleUrl);
-    return () => sub.remove();
-  }, [startSession, stop, pause, resume]);
+  useUrlControl({ start: startSession, stop, pause, resume });
 
   return (
     <View style={styles.container}>
@@ -105,7 +78,10 @@ export default function App() {
       ) : (
         <View style={styles.row}>
           {paused ? (
-            <Pressable style={[styles.button, styles.flex, styles.start]} onPress={resume}>
+            <Pressable
+              style={[styles.button, styles.flex, styles.start]}
+              onPress={resume}
+            >
               <Text style={styles.buttonText}>Resume</Text>
             </Pressable>
           ) : (

@@ -25,6 +25,7 @@ platform feature** (ActivityKit), plus a thoughtful writeup.
 > the two docs can't drift. Read `CLAUDE.md` before touching native code.
 
 Plan-level choices (not in CLAUDE.md):
+
 - **Scope discipline:** nail Must-Haves (M1–M6) cleanly; stretch is optional, only if on track.
   Goal is to showcase planning + execution, not gold-plating.
 - **`StudyAttributes` placement:** currently in `targets/widget/_shared/` (M1). In M2, once the
@@ -50,6 +51,7 @@ Plan-level choices (not in CLAUDE.md):
 ```
 
 **Planned bridge API (TS surface):**
+
 ```ts
 StudyTimer.areEnabled(): boolean
 StudyTimer.start({ id, name, startAnchor, goalSeconds }): Promise<string>
@@ -61,7 +63,8 @@ StudyTimer.getActiveIds(): Promise<string[]>
 
 ## Milestones / To-dos
 
-### M1 — Scaffold + prove widget target builds  ✅ DONE
+### M1 — Scaffold + prove widget target builds ✅ DONE
+
 - [x] Confirm env (Xcode 26.2, iOS 26.2 + 17.4 sims, Node 24, CocoaPods 1.16.2)
 - [x] Boot iPhone 17 Pro simulator (udid `84EAE5C7-6FE5-4B08-835A-C63FA69F5078`)
 - [x] Scaffold Expo TS app at repo root; wire git remote + `main` branch
@@ -73,7 +76,8 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [x] Verify app launches on simulator + screenshot
 - [x] Commit M1 ("scaffold + widget target builds") — `c166231`
 
-### M2 — Vertical slice: start/stop Live Activity  ✅ DONE
+### M2 — Vertical slice: start/stop Live Activity ✅ DONE
+
 - [x] Create local Expo module `modules/study-timer` (`create-expo-module --local`); deleted template scaffolding
 - [x] Copy `StudyAttributes.swift` into `modules/study-timer/ios/` (KEEP IN SYNC header)
 - [x] Move `_shared/StudyAttributes.swift` → widget-only membership (two copies, not three — CLAUDE.md inv.3)
@@ -86,13 +90,15 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [x] Commit M2
 
 **M2 notes / carryover:**
+
 - Lock-screen timer rendered `2:--` (width quirk in placeholder layout) → fix with proper
   HH:MM:SS + progress-bar layout in M3/M4.
 - idb usage: companion `/opt/homebrew/bin/idb_companion`; CLI at
   `scratchpad/idbvenv/bin/idb`; tap by accessibility frame via `idb ui describe-all`.
 - Custom-scheme `openurl` shows an "Open in app?" prompt (needs a tap); use idb taps for automation.
 
-### M3 — Real-time ticking + pause/resume display  ✅ DONE
+### M3 — Real-time ticking + pause/resume display ✅ DONE
+
 - [x] `Text(timerInterval:)` on-device ticking; `ElapsedText` view (running=timerInterval, paused=static)
 - [x] Pause freezes time + shows "Paused"; resume continues; `update()` wired
 - [x] HH:MM:SS in RN UI; `useTimer` hook (state machine + startAnchor math) + `lib/format.ts`
@@ -102,11 +108,13 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [x] Commit M3
 
 **M3 carryover (→ M4 polish):**
+
 - Compact Dynamic Island paused time truncates (`00:0…`) — use compact M:SS or pause glyph.
 - Lock-screen time/progress-bar spacing slightly tight; "Paused" label position.
-- Expanded Dynamic Island + progress *ring* still to do (M4 proper).
+- Expanded Dynamic Island + progress _ring_ still to do (M4 proper).
 
-### M4 — Dynamic Island + progress ring  ✅ DONE
+### M4 — Dynamic Island + progress ring ✅ DONE
+
 - [x] Compact: icon + time (island can't fit a readable name AND full timer — name lives in expanded/lock screen; documented)
 - [x] Expanded: full session name + time + progress ring (layoutPriority so time never shows "X:--")
 - [x] Minimal: elapsed time (coded; only renders with 2+ concurrent activities)
@@ -115,7 +123,8 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [x] Reproducibility (pulled fwd): README (LLM-runnable) + expo-dev-client + clean-clone test passed
 - [x] Commit M4
 
-### M5 — Edge cases  ✅ DONE
+### M5 — Edge cases ✅ DONE
+
 - [x] App-killed = persists + keeps ticking; relaunch **adopts** the surviving activity via `getActiveSessions()` (verified: 0:04→0:38 across a kill, restored)
 - [x] Single-activity invariant: `endAll` on start → rapid start/stop leaves 0 activities (verified via 6× idb stress loop, debug shows count 0)
 - [x] `staleDate` (8h) + `.immediate` dismissal so it leaves the lock screen promptly
@@ -124,6 +133,7 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [x] Commit M5
 
 ### M6 — Polish + docs + tests
+
 - [ ] UI pass
 - [ ] Lint/format setup + green: `npm run lint` (eslint + prettier) and swiftformat over `modules/` + `targets/`
 - [ ] Jest unit tests for timer math (accumulated elapsed, formatHHMMSS, progress)
@@ -132,6 +142,7 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [ ] Final git history cleanup; push
 
 ### Stretch (only if M1–M6 on track)
+
 - [ ] **Tier 1:** Interactive Live Activity controls via `LiveActivityIntent` + App Group state
       (pause/resume/stop from lock screen without opening app)
 - [ ] **Tier 2:** Deep link from widget → active session; goal-reached `alertConfiguration` + haptic
@@ -143,14 +154,14 @@ StudyTimer.getActiveIds(): Promise<string[]>
 2. **Observability:** debug panel + `os_log` (read via `xcrun simctl spawn booted log stream`).
 3. **Native behavior matrix** (screenshots as evidence):
 
-| Edge case | How to exercise | Pass criteria |
-|---|---|---|
-| Updates within 1–2s | start → screenshot over time | time advances |
-| Pause/resume reflected | pause → screenshot | frozen time + "Paused" |
-| Backgrounded keeps showing | home + lock → screenshot | still ticking |
-| App killed | `simctl terminate <bundle>` | ends gracefully / persists (documented) |
-| Rapid start/stop | loop start/stop ×N → `getActiveIds()` | count → 0, no zombies |
-| Relaunch reconciliation | kill → relaunch | orphans ended / session restored |
+| Edge case                  | How to exercise                       | Pass criteria                           |
+| -------------------------- | ------------------------------------- | --------------------------------------- |
+| Updates within 1–2s        | start → screenshot over time          | time advances                           |
+| Pause/resume reflected     | pause → screenshot                    | frozen time + "Paused"                  |
+| Backgrounded keeps showing | home + lock → screenshot              | still ticking                           |
+| App killed                 | `simctl terminate <bundle>`           | ends gracefully / persists (documented) |
+| Rapid start/stop           | loop start/stop ×N → `getActiveIds()` | count → 0, no zombies                   |
+| Relaunch reconciliation    | kill → relaunch                       | orphans ended / session restored        |
 
 ## How to run (current state)
 
@@ -161,6 +172,7 @@ npx expo run:ios --device "84EAE5C7-6FE5-4B08-835A-C63FA69F5078"   # build + ins
 ```
 
 Useful sim commands:
+
 ```bash
 xcrun simctl list devices booted
 xcrun simctl io booted screenshot /tmp/shot.png
@@ -172,9 +184,10 @@ xcrun simctl spawn booted log stream --predicate 'process == "StudyWidget"'
 
 **M1–M4 DONE.** Full feature set works on the iPhone 17 Pro sim: Start → Live Activity (lock
 screen + all Dynamic Island presentations, on-device ticking); in-app HH:MM:SS; Pause freezes
-+ "Paused"; Resume continues; Stop removes it; progress ring/bar toward goal. Reproducibility
-verified (clean-clone test passed; README + expo-dev-client added). Confirmed valid Expo SDK 56
-project. One env issue (stray `~/node_modules`) found + fixed by user.
-**M5 DONE.** Edge cases verified on sim: killed→persists→relaunch adopts the activity; rapid
-start/stop → 0 zombies; backgrounded keeps ticking; debug readout + os_log + staleDate added.
-**Next:** M6 — polish, Jest tests for timer math, finalize README/DISCUSSION, lint/format.
+
+- "Paused"; Resume continues; Stop removes it; progress ring/bar toward goal. Reproducibility
+  verified (clean-clone test passed; README + expo-dev-client added). Confirmed valid Expo SDK 56
+  project. One env issue (stray `~/node_modules`) found + fixed by user.
+  **M5 DONE.** Edge cases verified on sim: killed→persists→relaunch adopts the activity; rapid
+  start/stop → 0 zombies; backgrounded keeps ticking; debug readout + os_log + staleDate added.
+  **Next:** M6 — polish, Jest tests for timer math, finalize README/DISCUSSION, lint/format.

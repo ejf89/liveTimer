@@ -13,6 +13,7 @@ This challenge tests your ability to work with real-time infrastructure (i.e. Li
 ## The App
 
 ### Screen 1: Lobby
+
 ```
 ┌─────────────────────────────────┐
 │                                 │
@@ -31,6 +32,7 @@ This challenge tests your ability to work with real-time infrastructure (i.e. Li
 ```
 
 ### Screen 2: Practice Room
+
 ```
 ┌─────────────────────────────────┐
 │  Room: ABCD-1234        [Leave] │
@@ -92,13 +94,16 @@ This challenge tests your ability to work with real-time infrastructure (i.e. Li
 ## Technical Requirements
 
 ### Stack
+
 - **Frontend:** React or React Native
 - **Real-time:** LiveKit
 - **Backend:** Node.js/Express, Next.js API routes, or whatever works
 - **State:** However you prefer (React state, Zustand, Redux, etc.)
 
 ### LiveKit Resources
+
 If using LiveKit (recommended):
+
 - Free tier: https://livekit.io/pricing (no credit card required)
 - React SDK: `@livekit/components-react` or `@livekit/react-native`
 - Docs: https://docs.livekit.io

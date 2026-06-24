@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { anchorForResume, elapsedAtPause, elapsedWhileRunning } from '../lib/timer';
 import { StudyTimer } from '../modules/study-timer';
+
+const nowSec = () => Date.now() / 1000;
 
 export type TimerStatus = 'idle' | 'running' | 'paused';
 
@@ -34,7 +37,7 @@ export function useTimer() {
   useEffect(() => {
     if (status !== 'running') return;
     const handle = setInterval(() => {
-      setElapsed(Date.now() / 1000 - startAnchorRef.current);
+      setElapsed(elapsedWhileRunning(startAnchorRef.current, nowSec()));
     }, 250);
     return () => clearInterval(handle);
   }, [status]);
@@ -58,7 +61,9 @@ export function useTimer() {
       setName(adopt.name);
       setGoalSeconds(adopt.goalSeconds ?? DEFAULT_GOAL_SECONDS);
       setElapsed(
-        adopt.isPaused ? adopt.pausedElapsed : Date.now() / 1000 - adopt.startAnchor,
+        adopt.isPaused
+          ? adopt.pausedElapsed
+          : elapsedWhileRunning(adopt.startAnchor, nowSec()),
       );
       setStatus(adopt.isPaused ? 'paused' : 'running');
       refreshActiveCount('restored');
@@ -70,7 +75,7 @@ export function useTimer() {
 
   const start = useCallback(
     async (sessionName: string, goal = DEFAULT_GOAL_SECONDS) => {
-      const startAnchor = Date.now() / 1000;
+      const startAnchor = nowSec();
       startAnchorRef.current = startAnchor;
       pausedElapsedRef.current = 0;
       // start() returns the ActivityKit activity id — that's what update()/end() match on.
@@ -93,7 +98,7 @@ export function useTimer() {
   const pause = useCallback(async () => {
     const id = activityIdRef.current;
     if (!id || status !== 'running') return;
-    const pausedElapsed = Date.now() / 1000 - startAnchorRef.current;
+    const pausedElapsed = elapsedAtPause(startAnchorRef.current, nowSec());
     pausedElapsedRef.current = pausedElapsed;
     setElapsed(pausedElapsed);
     setStatus('paused');
@@ -110,7 +115,7 @@ export function useTimer() {
     const id = activityIdRef.current;
     if (!id || status !== 'paused') return;
     // Re-anchor so the on-device timer resumes at the frozen value.
-    const startAnchor = Date.now() / 1000 - pausedElapsedRef.current;
+    const startAnchor = anchorForResume(pausedElapsedRef.current, nowSec());
     startAnchorRef.current = startAnchor;
     setStatus('running');
     await StudyTimer.update({
@@ -132,5 +137,16 @@ export function useTimer() {
     refreshActiveCount('stop');
   }, [refreshActiveCount]);
 
-  return { status, elapsed, name, setName, goalSeconds, debug, start, pause, resume, stop };
+  return {
+    status,
+    elapsed,
+    name,
+    setName,
+    goalSeconds,
+    debug,
+    start,
+    pause,
+    resume,
+    stop,
+  };
 }
