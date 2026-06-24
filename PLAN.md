@@ -106,10 +106,14 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - Lock-screen time/progress-bar spacing slightly tight; "Paused" label position.
 - Expanded Dynamic Island + progress *ring* still to do (M4 proper).
 
-### M4 — Dynamic Island + progress ring
-- [ ] Compact (name truncated + time), expanded (full name + time + progress ring), minimal (elapsed)
-- [ ] Lock-screen progress bar toward goal
-- [ ] Screenshots of all three presentations; commit
+### M4 — Dynamic Island + progress ring  ✅ DONE
+- [x] Compact: icon + time (island can't fit a readable name AND full timer — name lives in expanded/lock screen; documented)
+- [x] Expanded: full session name + time + progress ring (layoutPriority so time never shows "X:--")
+- [x] Minimal: elapsed time (coded; only renders with 2+ concurrent activities)
+- [x] Lock-screen progress bar toward goal
+- [x] Verified on sim: compact (icon+0:06), expanded (name+0:35+ring), lock screen (full name+time+bar)
+- [x] Reproducibility (pulled fwd): README (LLM-runnable) + expo-dev-client + clean-clone test passed
+- [x] Commit M4
 
 ### M5 — Edge cases
 - [ ] App-killed = **persists + keeps ticking** (decided, CLAUDE.md); reconcile on relaunch (end orphans not matching a restored session)
@@ -165,9 +169,10 @@ xcrun simctl spawn booted log stream --predicate 'process == "StudyWidget"'
 
 ## Current status
 
-**M1–M3 DONE.** Full timer works on the iPhone 17 Pro sim: Start shows the Live Activity
-(lock screen + Dynamic Island, on-device ticking); in-app HH:MM:SS counts up; Pause freezes
-+ "Paused"; Resume continues; Stop removes it. `useTimer` hook owns the state machine; bridge
-+ typed TS API done; idb drives autonomous UI tests; lock-screen `2:--` fixed.
-**Next:** M4 — Dynamic Island three presentations (compact/expanded/minimal) + progress *ring*;
-clean up compact-trailing width + lock-screen spacing.
+**M1–M4 DONE.** Full feature set works on the iPhone 17 Pro sim: Start → Live Activity (lock
+screen + all Dynamic Island presentations, on-device ticking); in-app HH:MM:SS; Pause freezes
++ "Paused"; Resume continues; Stop removes it; progress ring/bar toward goal. Reproducibility
+verified (clean-clone test passed; README + expo-dev-client added). Confirmed valid Expo SDK 56
+project. One env issue (stray `~/node_modules`) found + fixed by user.
+**Next:** M5 — edge cases: launch reconciliation, no-zombie on rapid start/stop, background/kill
+behavior, `staleDate`, debug panel + `os_log`.

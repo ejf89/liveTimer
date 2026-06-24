@@ -11,9 +11,15 @@ _(to be expanded — see CLAUDE.md for canonical invariants)_
 - **Hand-written Expo Module bridge** rather than the `expo-live-activity` package — owning the
   bridge is the deliverable.
 - **`@bacons/apple-targets`** for reproducible widget-target generation across `prebuild`.
+- **Compact Dynamic Island shows icon + time, not the name.** The compact slots flanking the
+  camera can't fit a readable session name *and* a full timer (the name forced the timer to
+  truncate to "1:--"). The full name lives in the expanded + lock-screen presentations, matching
+  how Apple's own timer apps behave. (Documented assumption per the spec.)
+- **Goal defaults to 5:00** (a focus sprint) so the progress ring/bar fills visibly.
 
 ## What was hardest
-_(to fill in as it happens)_
+- Driving Live Activities in the simulator without accessibility/`idb` taps — solved by
+  installing `idb` + adding `livetimer://` URL control for scripted start/stop.
 
 ## What the AI got wrong (logged live)
 - **Expo `AsyncFunction` doesn't take Swift `async throws` closures.** First pass wrote

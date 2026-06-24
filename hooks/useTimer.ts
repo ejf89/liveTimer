@@ -4,7 +4,7 @@ import { StudyTimer } from '../modules/study-timer';
 
 export type TimerStatus = 'idle' | 'running' | 'paused';
 
-export const DEFAULT_GOAL_SECONDS = 1500; // 25:00
+export const DEFAULT_GOAL_SECONDS = 300; // 5:00
 
 /**
  * Owns the study-timer state machine and the Live Activity lifecycle.
