@@ -61,7 +61,7 @@ StudyTimer.getActiveIds(): Promise<string[]>
 
 ## Milestones / To-dos
 
-### M1 — Scaffold + prove widget target builds  ⏳ IN PROGRESS
+### M1 — Scaffold + prove widget target builds  ✅ DONE
 - [x] Confirm env (Xcode 26.2, iOS 26.2 + 17.4 sims, Node 24, CocoaPods 1.16.2)
 - [x] Boot iPhone 17 Pro simulator (udid `84EAE5C7-6FE5-4B08-835A-C63FA69F5078`)
 - [x] Scaffold Expo TS app at repo root; wire git remote + `main` branch
@@ -70,18 +70,27 @@ StudyTimer.getActiveIds(): Promise<string[]>
       `StudyWidgetBundle.swift`, `StudyLiveActivity.swift` — minimal)
 - [x] `npx expo prebuild -p ios --clean` → `StudyWidget.appex` target present & linked
 - [x] Build app + extension on simulator (`expo run:ios`) — **exit 0**
-- [ ] Verify app launches on simulator + screenshot (in progress when interrupted)
-- [ ] Commit M1 ("scaffold + widget target builds")
+- [x] Verify app launches on simulator + screenshot
+- [x] Commit M1 ("scaffold + widget target builds") — `c166231`
 
-### M2 — Vertical slice: start/stop Live Activity
-- [ ] Create local Expo module `modules/study-timer` (`create-expo-module --local`); delete template scaffolding
-- [ ] Copy `StudyAttributes.swift` into `modules/study-timer/ios/` (KEEP IN SYNC header)
-- [ ] Move `_shared/StudyAttributes.swift` → widget-only membership (two copies, not three — see CLAUDE.md inv.3)
-- [ ] Add `index.android.ts` no-op stub so JS calls don't crash on Android
-- [ ] Implement `start()` / `end()` in `StudyTimerModule.swift` (Activity.request/end, @available 16.2)
-- [ ] Typed TS API (`index.ts` + `src/StudyTimer.types.ts`)
-- [ ] RN Start/Stop buttons → Live Activity appears / disappears
-- [ ] Screenshot evidence; commit
+### M2 — Vertical slice: start/stop Live Activity  ✅ DONE
+- [x] Create local Expo module `modules/study-timer` (`create-expo-module --local`); deleted template scaffolding
+- [x] Copy `StudyAttributes.swift` into `modules/study-timer/ios/` (KEEP IN SYNC header)
+- [x] Move `_shared/StudyAttributes.swift` → widget-only membership (two copies, not three — CLAUDE.md inv.3)
+- [x] Add `index.android.ts` + `index.web.ts` no-op stubs
+- [x] Implement full bridge in `StudyTimerModule.swift` (areEnabled/start/update/end/endAll/getActiveIds, @available 16.2, Promise+Task pattern)
+- [x] Typed TS API (`index.ts` + `src/StudyTimer.types.ts`)
+- [x] RN Start/Stop buttons + URL control (`livetimer://start|stop`) → Live Activity appears / disappears
+- [x] Verified on sim (idb): lock-screen banner + Dynamic Island compact, on-device ticking, Stop clears it
+- [x] Tooling: installed idb (companion + fb-idb venv) for autonomous UI taps
+- [x] Commit M2
+
+**M2 notes / carryover:**
+- Lock-screen timer rendered `2:--` (width quirk in placeholder layout) → fix with proper
+  HH:MM:SS + progress-bar layout in M3/M4.
+- idb usage: companion `/opt/homebrew/bin/idb_companion`; CLI at
+  `scratchpad/idbvenv/bin/idb`; tap by accessibility frame via `idb ui describe-all`.
+- Custom-scheme `openurl` shows an "Open in app?" prompt (needs a tap); use idb taps for automation.
 
 ### M3 — Real-time ticking + pause/resume display
 - [ ] `Text(timerInterval:)` on-device ticking
@@ -148,6 +157,9 @@ xcrun simctl spawn booted log stream --predicate 'process == "StudyWidget"'
 
 ## Current status
 
-**M1 nearly complete.** App + `StudyWidget.appex` build cleanly (exit 0) and install on the
-iPhone 17 Pro simulator. Next: confirm launch + screenshot, commit M1, then start M2
-(local Expo module + start/stop Live Activity).
+**M1 + M2 DONE.** Full vertical slice works on the iPhone 17 Pro sim: Start shows the Live
+Activity (lock-screen banner + Dynamic Island compact, ticking on-device while backgrounded),
+Stop removes it. Hand-written Expo module bridge + typed TS API in place; idb set up for
+autonomous UI testing; one real id-handling bug caught + fixed (logged in DISCUSSION.md).
+**Next:** M3 — `useTimer` hook + in-app HH:MM:SS display + Pause/Resume wired to `update()`
+(freeze on pause, resume continues), and fix the lock-screen time layout (`2:--` quirk).
