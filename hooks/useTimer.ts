@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { anchorForResume, elapsedAtPause, elapsedWhileRunning } from '../lib/timer';
 import { StudyTimer } from '../modules/study-timer';
@@ -42,14 +43,21 @@ export function useTimer() {
     return () => clearInterval(handle);
   }, [status]);
 
-  // Launch reconciliation: a Live Activity survives an app kill, so on mount we
-  // adopt a still-running one (and end any extras — there should only be one).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  // Reconcile local state against the live truth in ActivityKit. Runs on mount (a
+  // Live Activity survives an app kill, so we adopt a still-running one) and again
+  // whenever the app returns to the foreground — that's when interactive controls
+  // (Pause/Resume/Stop) tapped on the lock screen get mirrored back into the app:
+  // the App Intent mutated the activity in Swift while we were backgrounded, so on
+  // return we re-read it. No activity → it was Stopped from the Live Activity → idle.
+  const reconcile = useCallback(
+    async (reason: string) => {
       const sessions = await StudyTimer.getActiveSessions();
-      if (cancelled || sessions.length === 0) {
-        refreshActiveCount('launch');
+      if (sessions.length === 0) {
+        activityIdRef.current = null;
+        pausedElapsedRef.current = 0;
+        setStatus('idle');
+        setElapsed(0);
+        refreshActiveCount(reason);
         return;
       }
       const [adopt, ...extras] = sessions;
@@ -66,12 +74,22 @@ export function useTimer() {
           : elapsedWhileRunning(adopt.startAnchor, nowSec()),
       );
       setStatus(adopt.isPaused ? 'paused' : 'running');
-      refreshActiveCount('restored');
+      refreshActiveCount(reason);
+    },
+    [refreshActiveCount],
+  );
+
+  useEffect(() => {
+    // Wrapped in an async IIFE so the post-fetch setState in reconcile() isn't read as
+    // a synchronous effect-body update (it only runs after getActiveSessions resolves).
+    void (async () => {
+      await reconcile('launch');
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshActiveCount]);
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') reconcile('foreground');
+    });
+    return () => sub.remove();
+  }, [reconcile]);
 
   const start = useCallback(
     async (sessionName: string, goal = DEFAULT_GOAL_SECONDS) => {

@@ -11,6 +11,42 @@ timer; a hand-written native bridge drives ActivityKit; a SwiftUI widget renders
 > Architecture rationale and trade-offs: see [`DISCUSSION.md`](./DISCUSSION.md).
 > Engineering invariants/conventions: see [`CLAUDE.md`](./CLAUDE.md).
 
+## Screenshots
+
+### In-app (React Native)
+
+The app owns the timer and displays it in `HH:MM:SS` (per spec), with Pause/Resume/Stop and a
+goal progress bar.
+
+| Running | Paused |
+| --- | --- |
+| <img src="docs/screenshots/app-running.png" width="250"> | <img src="docs/screenshots/app-paused.png" width="250"> |
+
+### Lock screen
+
+The Live Activity shows the session name, elapsed time, goal bar, and interactive Pause/Stop —
+tapping them controls the timer without opening the app.
+
+<img src="docs/screenshots/lockscreen.png" width="300">
+
+### Dynamic Island
+
+**Compact** — (truncated) session name + live time:
+
+<img src="docs/screenshots/di-compact.png" width="440">
+
+**Expanded** — full name, on-device ticking time, goal ring, and interactive Pause/Stop:
+
+| Running | Paused |
+| --- | --- |
+| <img src="docs/screenshots/di-expanded.png" width="380"> | <img src="docs/screenshots/di-expanded-paused.png" width="380"> |
+
+**Minimal** — just elapsed time. Implemented and correct, but **not runtime-photographable on a
+simulator**: iOS only renders the minimal presentation when 2+ Live Activities from _different
+apps_ are active (multiple activities from the _same_ app collapse to a single compact view —
+verified with three concurrent activities), and no stock simulator app ships a Live Activity to
+pair with. It renders in isolation via the SwiftUI `#Preview`. See [`DISCUSSION.md`](./DISCUSSION.md).
+
 ## Prerequisites
 
 - **macOS** with **Xcode 16+** (Live Activities need iOS 16.2+; Dynamic Island UI needs an
@@ -49,9 +85,13 @@ simulator: `npx expo run:ios --device "iPhone 17 Pro"`.
    - **Lock screen:** in the Simulator press **⌘L** (or _Device → Lock_) → the banner shows the
      session name, elapsed time, and progress bar.
    - **Dynamic Island:** leave the app (swipe to home / open another app). The compact pill shows
-     the icon + time; **long-press** it to see the expanded view (name, time, progress ring).
+     the (truncated) session name + time; **long-press** it to see the expanded view (name, time,
+     progress ring, and Pause/Stop controls).
 4. **Pause** freezes the time and shows "Paused" in the app and the Live Activity; **Resume**
    continues; **Stop** removes the Live Activity.
+5. **Control it from the Live Activity:** the Pause/Resume/Stop buttons on the lock screen and
+   expanded Dynamic Island drive the timer via an App Intent — no need to open the app. When you
+   return to the app it reconciles against the live activity, so its state stays in sync.
 
 ## Project structure
 

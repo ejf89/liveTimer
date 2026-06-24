@@ -1,17 +1,17 @@
 import ActivityKit
 import Foundation
 
-// Shared data contract for the Live Activity.
-//
-// This file lives in `targets/widget/_shared/`, so @bacons/apple-targets links
-// it into BOTH the main app target AND the widget extension. The native bridge
-// (a separate Expo module pod) keeps an identical copy — ActivityKit matches an
-// Activity to its widget by the attributes type name + Codable shape, so the two
-// compiled copies interoperate. See DISCUSSION.md for this trade-off.
-//
-// ⚠️ KEEP IN SYNC with modules/study-timer/ios/StudyAttributes.swift
+/// Shared data contract for the Live Activity.
+///
+/// This file lives in `targets/widget/_shared/`, so @bacons/apple-targets links
+/// it into BOTH the main app target AND the widget extension. The native bridge
+/// (a separate Expo module pod) keeps an identical copy — ActivityKit matches an
+/// Activity to its widget by the attributes type name + Codable shape, so the two
+/// compiled copies interoperate. See DISCUSSION.md for this trade-off.
+///
+/// ⚠️ KEEP IN SYNC with modules/study-timer/ios/StudyAttributes.swift
 struct StudyAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    struct ContentState: Codable, Hashable {
         /// Effective start instant for the count-up timer (now - accumulatedElapsed).
         /// The widget renders elapsed time on-device from this anchor, so it ticks
         /// without any JS->native traffic, even backgrounded.

@@ -115,7 +115,7 @@ StudyTimer.getActiveIds(): Promise<string[]>
 
 ### M4 — Dynamic Island + progress ring ✅ DONE
 
-- [x] Compact: icon + time (island can't fit a readable name AND full timer — name lives in expanded/lock screen; documented)
+- [x] Compact: truncated session name + time (per spec; width-capped so it truncates, full name in expanded/lock screen)
 - [x] Expanded: full session name + time + progress ring (layoutPriority so time never shows "X:--")
 - [x] Minimal: elapsed time (coded; only renders with 2+ concurrent activities)
 - [x] Lock-screen progress bar toward goal
@@ -132,21 +132,33 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [x] Backgrounded → keeps ticking (on-device rendering, verified)
 - [x] Commit M5
 
-### M6 — Polish + docs + tests
+### M6 — Polish + docs + tests ✅ DONE
 
-- [ ] UI pass
-- [ ] Lint/format setup + green: `npm run lint` (eslint + prettier) and swiftformat over `modules/` + `targets/`
-- [ ] Jest unit tests for timer math (accumulated elapsed, formatHHMMSS, progress)
-- [ ] `README.md` — LLM-runnable steps from clean checkout
-- [ ] `DISCUSSION.md` — architecture / hardest / what AI got wrong / scale (**log missteps live, not at the end**)
+- [x] UI pass
+- [x] Lint/format setup + green: `npm run lint` (eslint + prettier) and swiftformat over `modules/` + `targets/`
+- [x] Jest unit tests for timer math (accumulated elapsed, formatHHMMSS, progress)
+- [x] `README.md` — LLM-runnable steps from clean checkout + screenshots of every state
+- [x] `DISCUSSION.md` — architecture / hardest / what AI got wrong / scale (**logged live**)
 - [ ] Final git history cleanup; push
 
 ### Stretch (only if M1–M6 on track)
 
-- [ ] **Tier 1:** Interactive Live Activity controls via `LiveActivityIntent` + App Group state
-      (pause/resume/stop from lock screen without opening app)
+- [x] **Tier 1:** Interactive Live Activity controls via `LiveActivityIntent` ✅ DONE
+      - Pause/Resume/Stop buttons on the lock screen + expanded Dynamic Island; intent mirrors the
+        `startAnchor` math in Swift and mutates the activity directly.
+      - **App re-sync:** tapping the controls while backgrounded desynced the app — fixed by
+        reconciling against ActivityKit on `AppState` → `active` (foreground). Verified on sim:
+        Stop from the Live Activity → app returns to idle (`live activities: 0`).
+      - DI polish pass: compact = truncated name + time (spec); expanded = full name, balanced
+        centered ring, icon-only controls, edge-inset; consistent `M:SS`/`H:MM:SS` format across
+        running + paused; "Paused" badge inline.
 - [ ] **Tier 2:** Deep link from widget → active session; goal-reached `alertConfiguration` + haptic
 - [ ] **Tier 3 (discuss only):** remote push updates (APNs) for scale; session history
+
+**Minimal Dynamic Island note:** implemented + correct, but not runtime-photographable on the
+simulator — iOS only shows the minimal presentation for 2+ activities from _different apps_
+(same-app activities collapse to one compact view; verified with 3 concurrent), and no stock sim
+app ships a Live Activity. Viewable via SwiftUI `#Preview`. Documented in README + DISCUSSION.
 
 ## Testing strategy
 

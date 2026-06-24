@@ -1,12 +1,12 @@
 import ActivityKit
 import Foundation
 
-// ⚠️ SYNCED COPY — keep byte-identical to targets/widget/StudyAttributes.swift
-// (that file is the source of truth). ActivityKit matches an Activity to its widget
-// by the attributes type name + Codable shape, so this copy (compiled into the bridge
-// pod) and the widget copy interoperate. See CLAUDE.md invariant 3 + DISCUSSION.md.
+/// ⚠️ SYNCED COPY — keep byte-identical to targets/widget/StudyAttributes.swift
+/// (that file is the source of truth). ActivityKit matches an Activity to its widget
+/// by the attributes type name + Codable shape, so this copy (compiled into the bridge
+/// pod) and the widget copy interoperate. See CLAUDE.md invariant 3 + DISCUSSION.md.
 struct StudyAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    struct ContentState: Codable, Hashable {
         /// Effective start instant for the count-up timer (now - accumulatedElapsed).
         /// The widget renders elapsed time on-device from this anchor, so it ticks
         /// without any JS->native traffic, even backgrounded.

@@ -2,10 +2,10 @@ import ActivityKit
 import ExpoModulesCore
 import os
 
-// Bridge between React Native and ActivityKit. The JS layer owns the timer state
-// machine; this module only translates typed calls into Live Activity lifecycle
-// operations. Async work runs in a Task that resolves the Promise; all ActivityKit
-// calls are gated on iOS 16.2+ (see CLAUDE.md invariants).
+/// Bridge between React Native and ActivityKit. The JS layer owns the timer state
+/// machine; this module only translates typed calls into Live Activity lifecycle
+/// operations. Async work runs in a Task that resolves the Promise; all ActivityKit
+/// calls are gated on iOS 16.2+ (see CLAUDE.md invariants).
 public class StudyTimerModule: Module {
     public func definition() -> ModuleDefinition {
         Name("StudyTimer")
@@ -24,7 +24,7 @@ public class StudyTimerModule: Module {
             }
             Task {
                 do {
-                    promise.resolve(try await LiveActivityController.start(options))
+                    try promise.resolve(await LiveActivityController.start(options))
                 } catch let exception as Exception {
                     promise.reject(exception)
                 } catch {
@@ -71,8 +71,8 @@ public class StudyTimerModule: Module {
     }
 }
 
-// Typed arguments crossing the bridge. Dates arrive as epoch seconds and are
-// converted to `Date` at the boundary.
+/// Typed arguments crossing the bridge. Dates arrive as epoch seconds and are
+/// converted to `Date` at the boundary.
 struct StartOptions: Record {
     @Field var id: String
     @Field var name: String
@@ -87,12 +87,16 @@ struct UpdateOptions: Record {
     @Field var pausedElapsed: Double
 }
 
-internal final class LiveActivityUnavailableException: Exception, @unchecked Sendable {
-    override var reason: String { "Live Activities require iOS 16.2 or later." }
+final class LiveActivityUnavailableException: Exception, @unchecked Sendable {
+    override var reason: String {
+        "Live Activities require iOS 16.2 or later."
+    }
 }
 
-internal final class LiveActivitiesDisabledException: Exception, @unchecked Sendable {
-    override var reason: String { "Live Activities are disabled. Enable them in Settings." }
+final class LiveActivitiesDisabledException: Exception, @unchecked Sendable {
+    override var reason: String {
+        "Live Activities are disabled. Enable them in Settings."
+    }
 }
 
 @available(iOS 16.2, *)
