@@ -1,13 +1,21 @@
 {
   "expo": {
-    "name": "_scaffold",
-    "slug": "_scaffold",
+    "name": "Live Timer",
+    "slug": "live-timer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "livetimer",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ejf89.livetimer",
+      "infoPlist": {
+        "NSSupportsLiveActivities": true
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.ejf89.livetimer"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,6 +28,7 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": ["@bacons/apple-targets"]
   }
 }
