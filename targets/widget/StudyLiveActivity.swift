@@ -282,3 +282,65 @@ func hasReachedGoal(_ context: ActivityViewContext<StudyAttributes>) -> Bool {
         : Date().timeIntervalSince(context.state.startAnchor)
     return elapsed >= goal
 }
+
+// MARK: - Previews
+
+/// Sample data lives here (not in StudyAttributes.swift) so the shared contract file stays
+/// byte-identical to its bridge-pod copy. These #Previews render each presentation in
+/// isolation in Xcode's canvas — notably the `minimal` Dynamic Island, which the simulator
+/// never shows at runtime (iOS only renders minimal when 2+ apps have active Live Activities).
+@available(iOS 16.2, *)
+private extension StudyAttributes {
+    static var preview: StudyAttributes {
+        StudyAttributes(sessionId: "preview", sessionName: "Chapter 5 Review", goalSeconds: 1500)
+    }
+}
+
+@available(iOS 16.2, *)
+private extension StudyAttributes.ContentState {
+    static var running: StudyAttributes.ContentState {
+        .init(startAnchor: Date().addingTimeInterval(-95), isPaused: false, pausedElapsed: 0)
+    }
+
+    static var paused: StudyAttributes.ContentState {
+        .init(startAnchor: Date().addingTimeInterval(-95), isPaused: true, pausedElapsed: 95)
+    }
+
+    static var goalReached: StudyAttributes.ContentState {
+        .init(startAnchor: Date().addingTimeInterval(-1500), isPaused: true, pausedElapsed: 1500)
+    }
+}
+
+@available(iOS 17.0, *)
+#Preview("Lock screen", as: .content, using: StudyAttributes.preview) {
+    StudyLiveActivity()
+} contentStates: {
+    StudyAttributes.ContentState.running
+    StudyAttributes.ContentState.paused
+    StudyAttributes.ContentState.goalReached
+}
+
+@available(iOS 17.0, *)
+#Preview("Dynamic Island (compact)", as: .dynamicIsland(.compact), using: StudyAttributes.preview) {
+    StudyLiveActivity()
+} contentStates: {
+    StudyAttributes.ContentState.running
+    StudyAttributes.ContentState.goalReached
+}
+
+@available(iOS 17.0, *)
+#Preview("Dynamic Island (expanded)", as: .dynamicIsland(.expanded), using: StudyAttributes.preview) {
+    StudyLiveActivity()
+} contentStates: {
+    StudyAttributes.ContentState.running
+    StudyAttributes.ContentState.paused
+    StudyAttributes.ContentState.goalReached
+}
+
+@available(iOS 17.0, *)
+#Preview("Dynamic Island (minimal)", as: .dynamicIsland(.minimal), using: StudyAttributes.preview) {
+    StudyLiveActivity()
+} contentStates: {
+    StudyAttributes.ContentState.running
+    StudyAttributes.ContentState.goalReached
+}

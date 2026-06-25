@@ -263,6 +263,7 @@
             <tr><td class="fname">update(opts)</td><td>id, isPaused, startAnchor, pausedElapsed</td><td class="ftype">Promise&lt;void&gt;</td><td>Push a real state change (pause/resume)</td></tr>
             <tr><td class="fname">end(id)</td><td>id</td><td class="ftype">Promise&lt;void&gt;</td><td>End one activity</td></tr>
             <tr><td class="fname">endAll()</td><td>—</td><td class="ftype">Promise&lt;void&gt;</td><td>Zombie sweep — end every stray</td></tr>
+            <tr><td class="fname">getActiveIds()</td><td>—</td><td class="ftype">Promise&lt;string[]&gt;</td><td>Ids of running activities (zombie check)</td></tr>
             <tr><td class="fname">getActiveSessions()</td><td>—</td><td class="ftype">Promise&lt;ActiveSession[]&gt;</td><td>Full state, for relaunch reconciliation</td></tr>
           </table>
           <p class="note" style="margin-top:14px">
