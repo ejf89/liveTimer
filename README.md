@@ -46,7 +46,7 @@ tapping them controls the timer without opening the app.
 The minimal layout only appears when two apps have active Live Activities, so this is captured on a
 physical device.
 
-<img src="docs/screenshots/di-minimal.png" width="320">
+<img src="docs/screenshots/di-minimal.png" width="440">
 
 ## Prerequisites
 
