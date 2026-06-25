@@ -139,7 +139,7 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [x] Jest unit tests for timer math (accumulated elapsed, formatHHMMSS, progress)
 - [x] `README.md` — LLM-runnable steps from clean checkout + screenshots of every state
 - [x] `DISCUSSION.md` — architecture / hardest / what AI got wrong / scale (**logged live**)
-- [ ] Final git history cleanup; push
+- [x] Final submission cleanup: removed unused `expo-haptics` dep + unrelated challenge spec; doc drift fixed
 
 ### Stretch (only if M1–M6 on track)
 
@@ -194,12 +194,14 @@ xcrun simctl spawn booted log stream --predicate 'process == "StudyWidget"'
 
 ## Current status
 
-**M1–M4 DONE.** Full feature set works on the iPhone 17 Pro sim: Start → Live Activity (lock
-screen + all Dynamic Island presentations, on-device ticking); in-app HH:MM:SS; Pause freezes
+**M1–M6 DONE + Stretch Tier 1 DONE — ready to submit.** Full feature set works on the iPhone 17
+Pro sim: Start → Live Activity (lock screen + all Dynamic Island presentations, on-device
+ticking); in-app HH:MM:SS; Pause freezes + "Paused"; Resume continues; Stop removes it; progress
+ring/bar toward goal; interactive lock-screen/Dynamic-Island controls via App Intent. Edge cases
+verified: killed→persists→relaunch adopts the activity; rapid start/stop → 0 zombies; backgrounded
+keeps ticking. Reproducibility verified (clean-clone test passed; README LLM-runnable). Jest tests
+for timer math green (8/8); `npm run lint` clean; swiftformat over `modules/` + `targets/`.
 
-- "Paused"; Resume continues; Stop removes it; progress ring/bar toward goal. Reproducibility
-  verified (clean-clone test passed; README + expo-dev-client added). Confirmed valid Expo SDK 56
-  project. One env issue (stray `~/node_modules`) found + fixed by user.
-  **M5 DONE.** Edge cases verified on sim: killed→persists→relaunch adopts the activity; rapid
-  start/stop → 0 zombies; backgrounded keeps ticking; debug readout + os_log + staleDate added.
-  **Next:** M6 — polish, Jest tests for timer math, finalize README/DISCUSSION, lint/format.
+Final cleanup pass: removed the unused `expo-haptics` dependency, removed the unrelated
+`livekit-realtime-challenge.md` spec, and fixed the goal-default doc drift in CLAUDE.md (300s).
+**Next:** commit the cleanup + push.

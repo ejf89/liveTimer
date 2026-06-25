@@ -117,7 +117,8 @@ Run the formatters/linters before considering a change done.
 Goal ring (documented assumption)
 
 The spec mockup shows a progress ring on a count-up timer, which only has meaning against a target.
-Each session has an optional goalSeconds, default 1500 (25:00). The ring fills toward the goal;
+Each session has an optional goalSeconds, default 300 (5:00 — a focus sprint short enough that the
+ring/bar visibly fills during a demo). The ring fills toward the goal;
 HH:MM:SS keeps counting up past it. Verify circular ProgressView(timerInterval:) actually animates
 its fill natively — if it doesn't, the lock-screen linear bar is the fallback (the mockup uses a
 bar anyway), so a finicky ring never stalls the milestone.
