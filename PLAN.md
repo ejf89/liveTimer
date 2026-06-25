@@ -152,7 +152,7 @@ StudyTimer.getActiveIds(): Promise<string[]>
       - DI polish pass: compact = truncated name + time (spec); expanded = full name, balanced
         centered ring, icon-only controls, edge-inset; consistent `M:SS`/`H:MM:SS` format across
         running + paused; "Paused" badge inline.
-- [ ] **Tier 2:** Deep link from widget → active session; goal-reached `alertConfiguration` + haptic
+- [ ] **Tier 2:** goal-reached `alertConfiguration` + haptic
 - [ ] **Tier 3 (discuss only):** remote push updates (APNs) for scale; session history
 
 **Minimal Dynamic Island note:** implemented + correct, but not runtime-photographable on the
