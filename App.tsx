@@ -7,6 +7,15 @@ import { useUrlControl } from './hooks/useUrlControl';
 import { formatHHMMSS, goalProgress } from './lib/format';
 import { StudyTimer } from './modules/study-timer';
 
+// Study-sprint presets the goal picker offers. 30s is a quick way to demo the
+// timer hitting its goal; the rest are real focus sprints (5m / 25m pomodoro / 50m).
+const GOAL_PRESETS = [
+  { label: '30s', seconds: 30 },
+  { label: '5m', seconds: 300 },
+  { label: '25m', seconds: 1500 },
+  { label: '50m', seconds: 3000 },
+];
+
 export default function App() {
   const {
     status,
@@ -14,7 +23,7 @@ export default function App() {
     name,
     setName,
     goalSeconds,
-    debug,
+    setGoal,
     start,
     pause,
     resume,
@@ -25,6 +34,7 @@ export default function App() {
 
   const idle = status === 'idle';
   const paused = status === 'paused';
+  const completed = status === 'completed';
   const progress = goalProgress(elapsed, goalSeconds);
 
   const startSession = useCallback(
@@ -56,7 +66,7 @@ export default function App() {
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="Session name"
+          placeholder="Name your study session"
         />
       ) : (
         <Text style={styles.sessionName}>{name}</Text>
@@ -65,15 +75,48 @@ export default function App() {
       <Text style={styles.time}>{formatHHMMSS(elapsed)}</Text>
 
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${progress * 100}%` }]} />
+        <View
+          style={[
+            styles.fill,
+            completed && styles.fillDone,
+            { width: `${progress * 100}%` },
+          ]}
+        />
       </View>
-      <Text style={styles.goalLabel}>
-        {paused ? 'Paused' : `Goal ${formatHHMMSS(goalSeconds)}`}
-      </Text>
+      {idle ? (
+        <View style={styles.presets}>
+          {GOAL_PRESETS.map((preset) => {
+            const active = goalSeconds === preset.seconds;
+            return (
+              <Pressable
+                key={preset.seconds}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setGoal(preset.seconds)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {preset.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : (
+        <Text style={[styles.goalLabel, completed && styles.goalLabelDone]}>
+          {completed
+            ? '🎉 Goal reached'
+            : paused
+              ? 'Paused'
+              : `Goal ${formatHHMMSS(goalSeconds)}`}
+        </Text>
+      )}
 
       {idle ? (
         <Pressable style={[styles.button, styles.start]} onPress={() => startSession()}>
           <Text style={styles.buttonText}>Start New Session</Text>
+        </Pressable>
+      ) : completed ? (
+        <Pressable style={[styles.button, styles.done]} onPress={stop}>
+          <Text style={styles.buttonText}>Done</Text>
         </Pressable>
       ) : (
         <View style={styles.row}>
@@ -94,10 +137,6 @@ export default function App() {
           </Pressable>
         </View>
       )}
-
-      <Text style={styles.debug}>
-        live activities: {debug.activeCount} · last: {debug.lastAction}
-      </Text>
 
       <StatusBar style="auto" />
     </View>
@@ -140,13 +179,26 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fill: { height: '100%', backgroundColor: '#0a84ff', borderRadius: 3 },
+  fillDone: { backgroundColor: '#34c759' },
   goalLabel: { color: '#888', fontSize: 14 },
+  goalLabelDone: { color: '#34c759', fontWeight: '600' },
+  presets: { flexDirection: 'row', gap: 8, justifyContent: 'center' },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  chipActive: { backgroundColor: '#0a84ff', borderColor: '#0a84ff' },
+  chipText: { color: '#555', fontSize: 15, fontWeight: '600' },
+  chipTextActive: { color: '#fff' },
   row: { flexDirection: 'row', gap: 12, width: '100%' },
   flex: { flex: 1 },
   button: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', width: '100%' },
   start: { backgroundColor: '#0a84ff' },
   pause: { backgroundColor: '#ff9500' },
   stop: { backgroundColor: '#ff3b30' },
+  done: { backgroundColor: '#34c759' },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
-  debug: { marginTop: 8, color: '#bbb', fontSize: 12, fontVariant: ['tabular-nums'] },
 });

@@ -24,7 +24,13 @@ struct StudyLiveActivity: Widget {
                             Text(context.attributes.sessionName)
                                 .font(.subheadline.weight(.semibold))
                                 .lineLimit(1)
-                            if context.state.isPaused {
+                            if hasReachedGoal(context) {
+                                Spacer(minLength: 6)
+                                Label("Goal reached", systemImage: "checkmark.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.green)
+                                    .labelStyle(.titleAndIcon)
+                            } else if context.state.isPaused {
                                 Spacer(minLength: 6)
                                 Label("Paused", systemImage: "pause.fill")
                                     .font(.caption2)
@@ -34,14 +40,19 @@ struct StudyLiveActivity: Widget {
                         }
                         HStack(alignment: .center, spacing: 12) {
                             VStack(alignment: .leading, spacing: 8) {
-                                ElapsedText(state: context.state)
+                                ElapsedText(state: context.state, goalSeconds: context.attributes.goalSeconds)
                                     .font(.system(size: 30, weight: .semibold, design: .rounded))
                                     .monospacedDigit()
+                                    .foregroundStyle(hasReachedGoal(context) ? .green : .primary)
                                     .layoutPriority(1)
                                 // Compact (icon-only, small) controls so the buttons fit the
                                 // expanded island's height without clipping its rounded bottom.
                                 if #available(iOS 17.0, *) {
-                                    TimerControls(context: context, compact: true)
+                                    TimerControls(
+                                        context: context,
+                                        compact: true,
+                                        goalReached: hasReachedGoal(context)
+                                    )
                                 }
                             }
                             Spacer(minLength: 8)
@@ -58,7 +69,9 @@ struct StudyLiveActivity: Widget {
                 // camera is narrow, so cap the width and let it truncate — the full,
                 // untruncated name lives in the expanded + lock-screen views.
                 HStack(spacing: 3) {
-                    if context.state.isPaused {
+                    if hasReachedGoal(context) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    } else if context.state.isPaused {
                         Image(systemName: "pause.fill").foregroundStyle(.orange)
                     }
                     Text(context.attributes.sessionName)
@@ -66,13 +79,16 @@ struct StudyLiveActivity: Widget {
                         .frame(maxWidth: 62)
                 }
             } compactTrailing: {
-                ElapsedText(state: context.state)
+                ElapsedText(state: context.state, goalSeconds: context.attributes.goalSeconds)
                     .monospacedDigit()
-                    .foregroundStyle(context.state.isPaused ? .orange : .primary)
+                    .foregroundStyle(
+                        hasReachedGoal(context) ? .green : (context.state.isPaused ? .orange : .primary)
+                    )
             } minimal: {
                 // Minimal: just the elapsed time.
-                ElapsedText(state: context.state)
+                ElapsedText(state: context.state, goalSeconds: context.attributes.goalSeconds)
                     .monospacedDigit()
+                    .foregroundStyle(hasReachedGoal(context) ? .green : .primary)
             }
             .keylineTint(.orange)
         }
@@ -92,20 +108,26 @@ private struct LockScreenView: View {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer()
-                if context.state.isPaused {
+                if hasReachedGoal(context) {
+                    Label("Goal reached", systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                } else if context.state.isPaused {
                     Label("Paused", systemImage: "pause.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            ElapsedText(state: context.state)
+            ElapsedText(state: context.state, goalSeconds: context.attributes.goalSeconds)
                 .font(.system(size: 30, weight: .semibold, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                .foregroundStyle(hasReachedGoal(context) ? .green : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             GoalProgressBar(context: context)
             if #available(iOS 17.0, *) {
-                TimerControls(context: context).padding(.top, 2)
+                TimerControls(context: context, goalReached: hasReachedGoal(context))
+                    .padding(.top, 2)
             }
         }
     }
@@ -117,6 +139,7 @@ private struct LockScreenView: View {
 @available(iOS 16.2, *)
 private struct ElapsedText: View {
     let state: StudyAttributes.ContentState
+    var goalSeconds: Double?
 
     var body: some View {
         if state.isPaused {
@@ -124,15 +147,17 @@ private struct ElapsedText: View {
             // so pausing doesn't jump the layout from "0:29" to "00:00:29".
             Text(formatCompact(state.pausedElapsed))
         } else {
-            // Bound the interval to 24h. `Text(timerInterval:)` reserves width for the whole
-            // range, so an unbounded (distantFuture) range degrades to "M:--" at larger fonts;
-            // a bounded range reserves a sane width and renders the running clock natively.
-            // (A sub-1h cap to shrink the compact width drops the leading digit — ":05" — so
-            // the same 24h bound is used everywhere for correct rendering.)
-            Text(
-                timerInterval: state.startAnchor ... state.startAnchor.addingTimeInterval(86400),
-                countsDown: false
-            )
+            // Count up from the anchor, bounded to the goal — the timer stops there anyway.
+            // The bound is what fixes the intermittent "M:--" / "1:--" on the lock screen:
+            // Text(timerInterval:) reserves width for the WIDEST value its range can show, so a
+            // 24h range reserves for "23:59:59" and degrades to placeholder digits at larger
+            // fonts (worst in the first lock-screen snapshot, before live ticking kicks in).
+            // A goal-tight range (e.g. "25:00") reserves only what it needs. `pauseTime` freezes
+            // the value at the goal if the goal passes before the completion update lands. No
+            // goal -> 24h bound so it simply counts on.
+            let goalDate = goalSeconds.map { state.startAnchor.addingTimeInterval($0) }
+            let upper = goalDate ?? state.startAnchor.addingTimeInterval(86400)
+            Text(timerInterval: state.startAnchor ... upper, pauseTime: goalDate, countsDown: false)
         }
     }
 }
@@ -145,15 +170,16 @@ private struct GoalProgressBar: View {
 
     var body: some View {
         if let goal = context.attributes.goalSeconds, goal > 0 {
+            let tint: Color = hasReachedGoal(context) ? .green : .orange
             if context.state.isPaused {
                 ProgressView(value: min(context.state.pausedElapsed, goal), total: goal)
-                    .tint(.orange)
+                    .tint(tint)
             } else {
                 ProgressView(
                     timerInterval: context.state.startAnchor ... (context.state.startAnchor + goal),
                     countsDown: false
                 )
-                .tint(.orange)
+                .tint(tint)
                 .labelsHidden()
             }
         }
@@ -176,15 +202,17 @@ private struct ProgressRing: View {
     }
 
     var body: some View {
+        let reached = hasReachedGoal(context)
+        let tint: Color = reached ? .green : .orange
         ZStack {
-            Circle().stroke(Color.orange.opacity(0.25), lineWidth: 6)
+            Circle().stroke(tint.opacity(0.25), lineWidth: 6)
             Circle()
                 .trim(from: 0, to: progress)
-                .stroke(Color.orange, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .stroke(tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            Image(systemName: context.state.isPaused ? "pause.fill" : "book.closed.fill")
+            Image(systemName: reached ? "checkmark" : (context.state.isPaused ? "pause.fill" : "book.closed.fill"))
                 .font(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(tint)
         }
     }
 }
@@ -196,6 +224,8 @@ private struct TimerControls: View {
     let context: ActivityViewContext<StudyAttributes>
     /// Island uses icon-only/small controls (tight height); lock screen uses full labels.
     var compact = false
+    /// Once the goal is reached the session is finished, so only Stop is offered.
+    var goalReached = false
 
     var body: some View {
         // `.labelStyle` takes a concrete style type, so the icon-only vs. labelled choice
@@ -210,16 +240,18 @@ private struct TimerControls: View {
 
     private var controlStack: some View {
         HStack(spacing: compact ? 8 : 10) {
-            if context.state.isPaused {
-                Button(intent: TimerControlIntent(action: "resume", activityId: context.activityID)) {
-                    Label("Resume", systemImage: "play.fill")
+            if !goalReached {
+                if context.state.isPaused {
+                    Button(intent: TimerControlIntent(action: "resume", activityId: context.activityID)) {
+                        Label("Resume", systemImage: "play.fill")
+                    }
+                    .tint(.green)
+                } else {
+                    Button(intent: TimerControlIntent(action: "pause", activityId: context.activityID)) {
+                        Label("Pause", systemImage: "pause.fill")
+                    }
+                    .tint(.orange)
                 }
-                .tint(.green)
-            } else {
-                Button(intent: TimerControlIntent(action: "pause", activityId: context.activityID)) {
-                    Label("Pause", systemImage: "pause.fill")
-                }
-                .tint(.orange)
             }
             Button(intent: TimerControlIntent(action: "stop", activityId: context.activityID)) {
                 Label("Stop", systemImage: "stop.fill")
@@ -236,4 +268,17 @@ func formatCompact(_ seconds: TimeInterval) -> String {
     let total = Int(max(0, seconds))
     let h = total / 3600, m = (total % 3600) / 60, s = total % 60
     return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+}
+
+/// True once the session has reached its goal — the timer is at rest and the UI shows
+/// "goal reached". Derived from the existing state (a session frozen at/after its goal),
+/// so the bridge contract stays unchanged. The running clock freezes on-device via
+/// `pauseTime`, so this reads true even before the app pushes its completion update.
+@available(iOS 16.2, *)
+func hasReachedGoal(_ context: ActivityViewContext<StudyAttributes>) -> Bool {
+    guard let goal = context.attributes.goalSeconds, goal > 0 else { return false }
+    let elapsed = context.state.isPaused
+        ? context.state.pausedElapsed
+        : Date().timeIntervalSince(context.state.startAnchor)
+    return elapsed >= goal
 }

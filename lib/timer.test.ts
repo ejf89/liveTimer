@@ -1,4 +1,9 @@
-import { anchorForResume, elapsedAtPause, elapsedWhileRunning } from './timer';
+import {
+  anchorForResume,
+  elapsedAtPause,
+  elapsedWhileRunning,
+  hasReachedGoal,
+} from './timer';
 
 describe('timer math', () => {
   it('elapsed grows from the start anchor', () => {
@@ -25,5 +30,16 @@ describe('timer math', () => {
     const finalAt = 1110; // ran 10 more seconds
     // total counted = 30 (before) + 10 (after) = 40, paused gap not counted
     expect(elapsedWhileRunning(newAnchor, finalAt)).toBe(40);
+  });
+
+  it('reaches the goal at or past the target, never before', () => {
+    expect(hasReachedGoal(299, 300)).toBe(false);
+    expect(hasReachedGoal(300, 300)).toBe(true);
+    expect(hasReachedGoal(901, 300)).toBe(true);
+  });
+
+  it('treats a missing or zero goal as never-completing', () => {
+    expect(hasReachedGoal(99999, 0)).toBe(false);
+    expect(hasReachedGoal(99999, undefined)).toBe(false);
   });
 });

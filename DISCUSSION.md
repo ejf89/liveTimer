@@ -36,6 +36,14 @@ Key choices:
   untruncated name lives in the expanded + lock-screen views. A pause glyph + orange tint signal
   the paused state in the tight compact space.
 - **Goal defaults to 5:00** (a focus sprint) so the progress ring/bar fills visibly.
+- **The goal is a finish line — the timer stops when it reaches it** (status `completed`, "Goal
+  reached"). The freeze had to survive backgrounding/kill, so it's done on-device: the widget's
+  running clock uses `Text(timerInterval:pauseTime:)` with `pauseTime = startAnchor + goal`, so iOS
+  halts it at the goal with no push; JS fires one completion `update()` on crossing (never
+  per-second) to switch the activity to its "goal reached" look. Completion is *derived*
+  (`isPaused && pausedElapsed >= goal`), so the `StudyAttributes` contract stayed unchanged — at the
+  cost that a purely-backgrounded app shows the time freeze + full bar at the goal but only gets the
+  textual "goal reached" badge once it next becomes active and pushes the update.
 
 ## What was hardest
 

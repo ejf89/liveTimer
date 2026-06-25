@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { anchorForResume, elapsedAtPause, elapsedWhileRunning } from '../lib/timer';
+import {
+  anchorForResume,
+  elapsedAtPause,
+  elapsedWhileRunning,
+  hasReachedGoal,
+} from '../lib/timer';
 import { StudyTimer } from '../modules/study-timer';
 
 const nowSec = () => Date.now() / 1000;
 
-export type TimerStatus = 'idle' | 'running' | 'paused';
+export type TimerStatus = 'idle' | 'running' | 'paused' | 'completed';
 
 export const DEFAULT_GOAL_SECONDS = 300; // 5:00
 
@@ -21,27 +26,45 @@ export const DEFAULT_GOAL_SECONDS = 300; // 5:00
 export function useTimer() {
   const [status, setStatus] = useState<TimerStatus>('idle');
   const [elapsed, setElapsed] = useState(0); // seconds, for display
-  const [name, setName] = useState('Chapter 5 Review');
+  const [name, setName] = useState('');
   const [goalSeconds, setGoalSeconds] = useState(DEFAULT_GOAL_SECONDS);
-  const [debug, setDebug] = useState({ activeCount: 0, lastAction: 'idle' });
 
   const activityIdRef = useRef<string | null>(null);
   const startAnchorRef = useRef(0); // epoch seconds, valid while running
   const pausedElapsedRef = useRef(0); // frozen elapsed while paused
 
-  const refreshActiveCount = useCallback(async (lastAction: string) => {
-    const ids = await StudyTimer.getActiveIds();
-    setDebug({ activeCount: ids.length, lastAction });
-  }, []);
+  // The goal is a finish line: when elapsed reaches it the session completes and the
+  // clock stops at the goal value. We freeze the Live Activity with a single update
+  // (the widget also pauses itself on-device via `pauseTime`, so a backgrounded or
+  // killed app still stops exactly at the goal — see StudyLiveActivity.swift).
+  const complete = useCallback(async () => {
+    const id = activityIdRef.current;
+    if (!id) return;
+    pausedElapsedRef.current = goalSeconds;
+    setElapsed(goalSeconds);
+    setStatus('completed');
+    await StudyTimer.update({
+      id,
+      isPaused: true,
+      startAnchor: startAnchorRef.current,
+      pausedElapsed: goalSeconds,
+    });
+  }, [goalSeconds]);
 
-  // In-app display tick (local only — does not touch the Live Activity).
+  // In-app display tick (local only — does not touch the Live Activity), except for
+  // the one-shot completion update when the goal is crossed.
   useEffect(() => {
     if (status !== 'running') return;
     const handle = setInterval(() => {
-      setElapsed(elapsedWhileRunning(startAnchorRef.current, nowSec()));
+      const next = elapsedWhileRunning(startAnchorRef.current, nowSec());
+      if (hasReachedGoal(next, goalSeconds)) {
+        void complete();
+        return;
+      }
+      setElapsed(next);
     }, 250);
     return () => clearInterval(handle);
-  }, [status]);
+  }, [status, goalSeconds, complete]);
 
   // Reconcile local state against the live truth in ActivityKit. Runs on mount (a
   // Live Activity survives an app kill, so we adopt a still-running one) and again
@@ -50,49 +73,66 @@ export function useTimer() {
   // the App Intent mutated the activity in Swift while we were backgrounded, so on
   // return we re-read it. No activity → it was Stopped from the Live Activity → idle.
   const reconcile = useCallback(
-    async (reason: string) => {
+    async () => {
       const sessions = await StudyTimer.getActiveSessions();
       if (sessions.length === 0) {
         activityIdRef.current = null;
         pausedElapsedRef.current = 0;
         setStatus('idle');
         setElapsed(0);
-        refreshActiveCount(reason);
         return;
       }
       const [adopt, ...extras] = sessions;
       for (const extra of extras) await StudyTimer.end(extra.id);
 
+      const goal = adopt.goalSeconds ?? DEFAULT_GOAL_SECONDS;
+      const liveElapsed = adopt.isPaused
+        ? adopt.pausedElapsed
+        : elapsedWhileRunning(adopt.startAnchor, nowSec());
+
       activityIdRef.current = adopt.id;
       startAnchorRef.current = adopt.startAnchor;
-      pausedElapsedRef.current = adopt.pausedElapsed;
       setName(adopt.name);
-      setGoalSeconds(adopt.goalSeconds ?? DEFAULT_GOAL_SECONDS);
-      setElapsed(
-        adopt.isPaused
-          ? adopt.pausedElapsed
-          : elapsedWhileRunning(adopt.startAnchor, nowSec()),
-      );
-      setStatus(adopt.isPaused ? 'paused' : 'running');
-      refreshActiveCount(reason);
+      setGoalSeconds(goal);
+
+      if (hasReachedGoal(liveElapsed, goal)) {
+        // The session crossed its goal while we were away. Settle on the completed
+        // state and, if the activity is still mid-run (killed before the completion
+        // update landed), freeze it now so the widget shows "goal reached".
+        pausedElapsedRef.current = goal;
+        setElapsed(goal);
+        setStatus('completed');
+        if (!adopt.isPaused) {
+          await StudyTimer.update({
+            id: adopt.id,
+            isPaused: true,
+            startAnchor: adopt.startAnchor,
+            pausedElapsed: goal,
+          });
+        }
+      } else {
+        pausedElapsedRef.current = adopt.pausedElapsed;
+        setElapsed(liveElapsed);
+        setStatus(adopt.isPaused ? 'paused' : 'running');
+      }
     },
-    [refreshActiveCount],
+    [],
   );
 
   useEffect(() => {
-    // Wrapped in an async IIFE so the post-fetch setState in reconcile() isn't read as
-    // a synchronous effect-body update (it only runs after getActiveSessions resolves).
+    // Wrapped in an async IIFE so reconcile()'s setState isn't read as a synchronous
+    // effect-body update — it only runs after getActiveSessions() resolves.
     void (async () => {
-      await reconcile('launch');
+      await reconcile();
     })();
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') reconcile('foreground');
+      if (next === 'active') void reconcile();
     });
     return () => sub.remove();
   }, [reconcile]);
 
   const start = useCallback(
-    async (sessionName: string, goal = DEFAULT_GOAL_SECONDS) => {
+    async (sessionName: string, goal = goalSeconds) => {
       const startAnchor = nowSec();
       startAnchorRef.current = startAnchor;
       pausedElapsedRef.current = 0;
@@ -108,10 +148,15 @@ export function useTimer() {
       setGoalSeconds(goal);
       setElapsed(0);
       setStatus('running');
-      refreshActiveCount('start');
     },
-    [refreshActiveCount],
+    [goalSeconds],
   );
+
+  // Pick the goal before starting. goalSeconds lives in the (immutable) activity
+  // attributes, so it's only meaningful while idle — the UI only shows the picker then.
+  const setGoal = useCallback((seconds: number) => {
+    setGoalSeconds(seconds);
+  }, []);
 
   const pause = useCallback(async () => {
     const id = activityIdRef.current;
@@ -126,8 +171,7 @@ export function useTimer() {
       startAnchor: startAnchorRef.current,
       pausedElapsed,
     });
-    refreshActiveCount('pause');
-  }, [status, refreshActiveCount]);
+  }, [status]);
 
   const resume = useCallback(async () => {
     const id = activityIdRef.current;
@@ -142,8 +186,7 @@ export function useTimer() {
       startAnchor,
       pausedElapsed: pausedElapsedRef.current,
     });
-    refreshActiveCount('resume');
-  }, [status, refreshActiveCount]);
+  }, [status]);
 
   const stop = useCallback(async () => {
     const id = activityIdRef.current;
@@ -152,8 +195,7 @@ export function useTimer() {
     setStatus('idle');
     setElapsed(0);
     await StudyTimer.end(id);
-    refreshActiveCount('stop');
-  }, [refreshActiveCount]);
+  }, []);
 
   return {
     status,
@@ -161,7 +203,7 @@ export function useTimer() {
     name,
     setName,
     goalSeconds,
-    debug,
+    setGoal,
     start,
     pause,
     resume,

@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live Timer — Architecture Walkthrough</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --panel-2: #1c2330;
+        --line: #30363d;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --js: #f7df1e;
+        --swift: #ff9500;
+        --activitykit: #0a84ff;
+        --green: #2ea043;
+        --red: #ff453a;
+        --accent: #d2a8ff;
+        --code-bg: #0b0f14;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        padding: 0 0 80px;
+      }
+      header {
+        padding: 40px 32px 28px;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(180deg, #131922, var(--bg));
+      }
+      h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -0.5px; }
+      header p { margin: 0; color: var(--muted); max-width: 760px; }
+      main { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+      section { margin-top: 52px; }
+      h2 {
+        font-size: 21px;
+        margin: 0 0 4px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      h2 .num {
+        display: inline-grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #0d1117;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .sub { color: var(--muted); margin: 0 0 22px; }
+      code, .mono { font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      code { background: var(--code-bg); padding: 1px 6px; border-radius: 5px; font-size: 0.86em; color: #ffd9a0; }
+
+      /* ---- layered stack diagram ---- */
+      .stack { display: flex; flex-direction: column; gap: 0; }
+      .layer {
+        position: relative;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin: 0 0 6px;
+        background: var(--panel);
+      }
+      .layer h3 { margin: 0 0 4px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+      .layer .tag {
+        font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+        padding: 2px 8px; border-radius: 999px; color: #0d1117;
+      }
+      .tag.js { background: var(--js); }
+      .tag.swift { background: var(--swift); }
+      .tag.ak { background: var(--activitykit); color: #fff; }
+      .layer .files { color: var(--muted); font-size: 13px; }
+      .layer p { margin: 8px 0 0; color: #c9d1d9; font-size: 14px; }
+      .arrow-down {
+        text-align: center; color: var(--muted); font-size: 13px; margin: 2px 0 8px;
+      }
+      .arrow-down b { color: var(--text); }
+
+      /* ---- data contract ---- */
+      .contract { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      @media (max-width: 720px) { .contract { grid-template-columns: 1fr; } .flow-row { flex-direction: column; } }
+      .card {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px;
+      }
+      .card h3 { margin: 0 0 2px; font-size: 16px; }
+      .card .meta { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+      th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+      td .fname { color: #ffd9a0; }
+      td .ftype { color: #79c0ff; }
+
+      /* ---- pause/resume timeline ---- */
+      .math { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+      .math .eq { font-family: "SF Mono", ui-monospace, monospace; font-size: 14px; }
+      .phase { display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-bottom: 1px dashed var(--line); }
+      .phase:last-child { border-bottom: 0; }
+      .phase .badge {
+        flex: 0 0 auto; min-width: 92px; text-align: center; font-weight: 700; font-size: 13px;
+        padding: 6px 10px; border-radius: 8px;
+      }
+      .badge.run { background: rgba(46,160,67,0.18); color: #56d364; border: 1px solid #2ea043; }
+      .badge.pause { background: rgba(255,149,0,0.16); color: #ffb454; border: 1px solid var(--swift); }
+      .phase .body { flex: 1; }
+      .phase .body .what { font-weight: 600; margin-bottom: 2px; }
+      .phase .body .eq { color: #c9d1d9; }
+
+      /* ---- decision callouts ---- */
+      .decisions { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      @media (max-width: 720px) { .decisions { grid-template-columns: 1fr; } }
+      .decision {
+        background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+        border-radius: 10px; padding: 16px 18px;
+      }
+      .decision h4 { margin: 0 0 6px; font-size: 15px; }
+      .decision p { margin: 0; color: #c9d1d9; font-size: 13.5px; }
+      .decision .why { color: var(--muted); font-size: 12.5px; margin-top: 8px; display: block; }
+      .pill { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+
+      /* ---- flow strip ---- */
+      .flow-row { display: flex; align-items: stretch; gap: 0; margin: 8px 0; }
+      .flow-step {
+        flex: 1; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+        padding: 12px 14px; font-size: 13px;
+      }
+      .flow-step b { display: block; margin-bottom: 3px; }
+      .flow-step .c { color: var(--muted); }
+      .flow-conn { display: grid; place-items: center; color: var(--muted); padding: 0 8px; font-size: 18px; }
+
+      .note { background: rgba(10,132,255,0.08); border: 1px solid rgba(10,132,255,0.4); border-radius: 10px; padding: 14px 16px; font-size: 13.5px; color: #c9d1d9; }
+      .note b { color: #79c0ff; }
+      .legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 13px; margin-top: 10px; }
+      .legend span { display: inline-flex; align-items: center; gap: 6px; }
+      .dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Live Timer — Architecture Walkthrough</h1>
+      <p>
+        A React Native / Expo study timer whose state is mirrored to a native iOS <b>Live Activity</b>
+        (lock screen + Dynamic Island). React Native owns the timer; a hand-written native bridge drives
+        ActivityKit; a SwiftUI widget renders it. This page explains how the pieces fit, exactly what data
+        crosses the boundary, and why the load-bearing decisions were made.
+      </p>
+      <div class="legend">
+        <span><i class="dot" style="background:#f7df1e"></i> JavaScript / TypeScript</span>
+        <span><i class="dot" style="background:#ff9500"></i> Swift</span>
+        <span><i class="dot" style="background:#0a84ff"></i> Apple framework (ActivityKit / SwiftUI)</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- 1. THE FOUR LAYERS -->
+      <section>
+        <h2><span class="num">1</span> Four compilation units, one timer</h2>
+        <p class="sub">
+          The system is split across four separately-compiled units. Almost every design decision
+          falls out of that split — they can only talk through narrow, typed seams.
+        </p>
+
+        <div class="stack">
+          <div class="layer">
+            <h3><span class="tag js">JS / TS</span> React Native app</h3>
+            <div class="files mono">App.tsx · hooks/useTimer.ts · lib/timer.ts · lib/format.ts</div>
+            <p>
+              Owns the <b>timer state machine</b> (<code>idle | running | paused</code>) and all the time math.
+              A 250&nbsp;ms interval drives only the <i>in-app</i> <code>HH:MM:SS</code> readout — it never touches
+              the Live Activity. State changes call the bridge.
+            </p>
+          </div>
+
+          <div class="arrow-down">▼ &nbsp; typed async calls &nbsp;<b>start / update / end / endAll / getActiveSessions</b>&nbsp; (dates as epoch seconds)</div>
+
+          <div class="layer">
+            <h3><span class="tag js">TS</span> Bridge — JS facade</h3>
+            <div class="files mono">modules/study-timer/index.ts · src/StudyTimer.types.ts · index.android.ts / .web.ts</div>
+            <p>
+              The clean typed surface the app imports. On iOS it resolves to the native module via
+              <code>requireNativeModule</code>; on Android/web Metro picks the <b>no-op stub</b> so shared JS never crashes.
+            </p>
+          </div>
+
+          <div class="arrow-down">▼ &nbsp; Expo Modules API (the actual JS↔Swift boundary)</div>
+
+          <div class="layer">
+            <h3><span class="tag swift">Swift</span> Bridge — native module (a CocoaPod)</h3>
+            <div class="files mono">modules/study-timer/ios/StudyTimerModule.swift · StudyAttributes.swift (copy)</div>
+            <p>
+              Translates typed calls into ActivityKit lifecycle ops: <code>Activity.request / .update / .end</code>.
+              Converts epoch-seconds → <code>Date</code> at the boundary. Every call site is
+              <code>@available(iOS 16.2, *)</code>. This is the <b>only</b> place that talks to ActivityKit.
+            </p>
+          </div>
+
+          <div class="arrow-down">▼ &nbsp; <span class="tag ak" style="font-size:10px">ActivityKit</span> &nbsp; matches activity ⇄ widget by <b>type name + Codable shape</b></div>
+
+          <div class="layer">
+            <h3><span class="tag swift">Swift</span> Widget extension <span class="tag ak">SwiftUI</span></h3>
+            <div class="files mono">targets/widget/StudyLiveActivity.swift · StudyWidgetBundle.swift · _shared/StudyAttributes.swift · _shared/TimerControlIntent.swift</div>
+            <p>
+              A separate process. Renders the lock-screen view + Dynamic Island (compact / expanded / minimal).
+              The running clock is drawn with SwiftUI's <code>Text(timerInterval:)</code>, so <b>iOS ticks the seconds
+              on-device</b> — even when the app is backgrounded or killed.
+            </p>
+          </div>
+        </div>
+
+        <p class="note" style="margin-top:18px">
+          <b>Key insight:</b> the bridge pod and the widget extension are different binaries that never share
+          code at runtime. ActivityKit links a live <code>Activity</code> to its widget purely by the
+          <code>StudyAttributes</code> <i>type name</i> and its <i>Codable shape</i> — which is why the attributes
+          struct has to exist, byte-compatible, in both (see §4).
+        </p>
+      </section>
+
+      <!-- 2. DATA CONTRACT -->
+      <section>
+        <h2><span class="num">2</span> What actually crosses the bridge</h2>
+        <p class="sub">
+          ActivityKit splits an activity's data in two: <b>Attributes</b> are fixed for the activity's life;
+          <b>ContentState</b> is the part you update. Getting the right field on the right side is the whole game.
+        </p>
+
+        <div class="contract">
+          <div class="card">
+            <h3>StudyAttributes <span class="pill">static · set once at start</span></h3>
+            <div class="meta">Passed to <code>Activity.request(...)</code>. Immutable for the session.</div>
+            <table>
+              <tr><th>Field</th><th>Type</th><th>Meaning</th></tr>
+              <tr><td class="fname">sessionId</td><td class="ftype">String</td><td>Caller-owned id (RN session)</td></tr>
+              <tr><td class="fname">sessionName</td><td class="ftype">String</td><td>Display name, e.g. "Chapter 5"</td></tr>
+              <tr><td class="fname">goalSeconds</td><td class="ftype">Double?</td><td>Optional target → progress ring/bar</td></tr>
+            </table>
+          </div>
+
+          <div class="card">
+            <h3>ContentState <span class="pill">dynamic · pushed on change</span></h3>
+            <div class="meta">Sent on <code>start</code> and every <code>update</code>. Never per-second.</div>
+            <table>
+              <tr><th>Field</th><th>Type</th><th>Meaning</th></tr>
+              <tr><td class="fname">startAnchor</td><td class="ftype">Date</td><td><code>now − elapsed</code>; the clock counts up from here</td></tr>
+              <tr><td class="fname">isPaused</td><td class="ftype">Bool</td><td>Running vs frozen presentation</td></tr>
+              <tr><td class="fname">pausedElapsed</td><td class="ftype">Double</td><td>Frozen seconds, shown while paused</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>Bridge API surface <span class="pill">the typed seam (TS → Swift)</span></h3>
+          <table>
+            <tr><th>Method</th><th>Args</th><th>Returns</th><th>Purpose</th></tr>
+            <tr><td class="fname">areEnabled()</td><td>—</td><td class="ftype">boolean</td><td>Live Activities allowed? (sync getter)</td></tr>
+            <tr><td class="fname">start(opts)</td><td>id, name, startAnchor, goalSeconds</td><td class="ftype">Promise&lt;string&gt;</td><td>Begin activity; returns the <b>ActivityKit id</b></td></tr>
+            <tr><td class="fname">update(opts)</td><td>id, isPaused, startAnchor, pausedElapsed</td><td class="ftype">Promise&lt;void&gt;</td><td>Push a real state change (pause/resume)</td></tr>
+            <tr><td class="fname">end(id)</td><td>id</td><td class="ftype">Promise&lt;void&gt;</td><td>End one activity</td></tr>
+            <tr><td class="fname">endAll()</td><td>—</td><td class="ftype">Promise&lt;void&gt;</td><td>Zombie sweep — end every stray</td></tr>
+            <tr><td class="fname">getActiveSessions()</td><td>—</td><td class="ftype">Promise&lt;ActiveSession[]&gt;</td><td>Full state, for relaunch reconciliation</td></tr>
+          </table>
+          <p class="note" style="margin-top:14px">
+            <b>The id gotcha:</b> <code>start()</code> returns the <i>ActivityKit-assigned</i> id, not the RN session id.
+            <code>update()</code> / <code>end()</code> match on that returned id. (An early bug tracked the RN id instead,
+            so Stop updated the UI but leaked the activity — it kept ticking on the lock screen.)
+          </p>
+        </div>
+      </section>
+
+      <!-- 3. THE TICKING MODEL + ANCHOR MATH -->
+      <section>
+        <h2><span class="num">3</span> Why the timer ticks without messages — and the anchor math</h2>
+        <p class="sub">
+          The single most important decision: the widget is <b>never</b> told the current time. It's told a
+          <code>startAnchor</code> once, and SwiftUI counts up from it locally. Pause/resume is just arithmetic on that anchor.
+        </p>
+
+        <div class="math">
+          <p class="eq" style="margin-top:0; color:var(--muted)">
+            in-app display &amp; widget both derive:&nbsp;
+            <span style="color:#56d364">elapsed = now − startAnchor</span>
+          </p>
+
+          <div class="phase">
+            <div class="badge run">RUNNING</div>
+            <div class="body">
+              <div class="what">Widget renders <code>Text(timerInterval: startAnchor…)</code></div>
+              <div class="eq">iOS animates the seconds on-device. <b>Zero</b> JS↔native traffic while running — works backgrounded &amp; after the app is killed.</div>
+            </div>
+          </div>
+
+          <div class="phase">
+            <div class="badge pause">PAUSE</div>
+            <div class="body">
+              <div class="what">Freeze the clock</div>
+              <div class="eq"><span style="color:#ffb454">pausedElapsed = now − startAnchor</span> &nbsp;·&nbsp; isPaused = true &nbsp;→&nbsp; widget shows the frozen value + "Paused". One <code>update()</code> call.</div>
+            </div>
+          </div>
+
+          <div class="phase">
+            <div class="badge run">RESUME</div>
+            <div class="body">
+              <div class="what">Re-anchor so it continues seamlessly</div>
+              <div class="eq"><span style="color:#56d364">startAnchor = now − pausedElapsed</span> &nbsp;·&nbsp; isPaused = false &nbsp;→&nbsp; the on-device clock picks up exactly where it froze. One <code>update()</code> call.</div>
+            </div>
+          </div>
+
+          <div class="phase">
+            <div class="badge" style="background:rgba(48,209,88,0.16);color:#56d364;border:1px solid #34c759">GOAL</div>
+            <div class="body">
+              <div class="what">Stop at the finish line</div>
+              <div class="eq">When <span style="color:#56d364">elapsed ≥ goal</span> the session <b>completes</b> and the clock halts at the goal value. The widget freezes <i>itself</i> on-device with <code>Text(timerInterval: … , pauseTime: startAnchor + goal)</code> — so it stops at the goal even backgrounded or killed — and JS pushes one completion <code>update()</code> so it shows "Goal reached". Completion is <i>derived</i> (<code>isPaused && pausedElapsed ≥ goal</code>), so the data contract is unchanged.</div>
+            </div>
+          </div>
+        </div>
+
+        <p class="note" style="margin-top:16px">
+          <b>Contrast:</b> the naive approach is a <code>setInterval</code> pushing the new time to the widget every second.
+          That's a flood of cross-process messages, drains battery, and <i>stops the moment the app is suspended</i> —
+          the opposite of what a lock-screen timer needs. Anchoring makes the common case (running) cost nothing.
+        </p>
+      </section>
+
+      <!-- 4. KEY DECISIONS -->
+      <section>
+        <h2><span class="num">4</span> Load-bearing decisions &amp; their "why"</h2>
+        <p class="sub">Each of these looks like a small detail but changes how the feature behaves.</p>
+
+        <div class="decisions">
+          <div class="decision">
+            <h4>On-device ticking, not per-second pushes</h4>
+            <p><code>Text(timerInterval:)</code> lets iOS draw the running clock itself.</p>
+            <span class="why">Why: real-time updates, background/killed survival, and near-zero battery — all for free. The bridge only fires on genuine state changes.</span>
+          </div>
+
+          <div class="decision">
+            <h4>Time from a <code>startAnchor</code>, never a stored counter</h4>
+            <p>One epoch-seconds anchor is the source of truth for both the JS display and the native render.</p>
+            <span class="why">Why: no drift between two clocks, and the pure math is unit-tested in <code>lib/timer.ts</code> and mirrored in Swift.</span>
+          </div>
+
+          <div class="decision">
+            <h4>The goal stops the timer, on-device</h4>
+            <p>At the goal the session completes and the clock freezes at the goal value — via the widget's <code>pauseTime</code>, not a JS timer.</p>
+            <span class="why">Why: a lock-screen timer must stop at the goal even with the app backgrounded or killed. JS adds one completion <code>update()</code> for the "goal reached" look; completion is derived from existing state, so the contract is unchanged.</span>
+          </div>
+
+          <div class="decision">
+            <h4>Two copies of <code>StudyAttributes</code></h4>
+            <p>One in the widget (<code>_shared/</code>), one in the bridge pod — kept byte-compatible by hand.</p>
+            <span class="why">Why: ActivityKit matches by type name + Codable shape across separate binaries. At scale, a shared local Swift Package would remove the duplication.</span>
+          </div>
+
+          <div class="decision">
+            <h4>Interactive intent lives in <code>_shared/</code></h4>
+            <p><code>TimerControlIntent</code> compiles into <b>both</b> the widget and the app target.</p>
+            <span class="why">Why: the widget builds the <code>Button(intent:)</code>; the app is where <code>perform()</code> actually runs (launched in the background, no UI). It mutates the activity directly in Swift.</span>
+          </div>
+
+          <div class="decision">
+            <h4>No zombies — one activity, ever</h4>
+            <p><code>endAll()</code> on start; <code>end()</code> + sweep on stop; serialized on the main actor.</p>
+            <span class="why">Why: rapid start/stop or a crash mid-flight must never orphan a Live Activity. <code>getActiveIds()</code> should read 0 after a stop.</span>
+          </div>
+
+          <div class="decision">
+            <h4>Killed = persists; relaunch reconciles</h4>
+            <p>The activity keeps ticking after an app kill (it's free). On launch &amp; on foreground, the app reads <code>getActiveSessions()</code> and adopts or clears.</p>
+            <span class="why">Why: better demo + it's the moment lock-screen control taps (which mutate the activity in Swift) get mirrored back into the app.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. LIFECYCLE FLOWS -->
+      <section>
+        <h2><span class="num">5</span> Putting it together — the flows</h2>
+        <p class="sub">How a tap on the screen (or the lock screen) travels through the layers.</p>
+
+        <h4 style="margin:18px 0 4px; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.4px">Start → running</h4>
+        <div class="flow-row">
+          <div class="flow-step"><b>App.tsx</b><span class="c">tap "Start"</span></div>
+          <div class="flow-conn">→</div>
+          <div class="flow-step"><b>useTimer</b><span class="c">set anchor = now, status = running</span></div>
+          <div class="flow-conn">→</div>
+          <div class="flow-step"><b>bridge</b><span class="c">start(...) → endAll() first</span></div>
+          <div class="flow-conn">→</div>
+          <div class="flow-step"><b>ActivityKit</b><span class="c">Activity.request(...)</span></div>
+          <div class="flow-conn">→</div>
+          <div class="flow-step"><b>widget</b><span class="c">ticks from anchor on-device</span></div>
+        </div>
+
+        <h4 style="margin:18px 0 4px; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.4px">Control from the lock screen (App Intent)</h4>
+        <div class="flow-row">
+          <div class="flow-step"><b>Live Activity</b><span class="c">tap Pause/Stop button</span></div>
+          <div class="flow-conn">→</div>
+          <div class="flow-step"><b>TimerControlIntent.perform()</b><span class="c">runs in app process, no UI; mutates the activity in Swift</span></div>
+          <div class="flow-conn">→</div>
+          <div class="flow-step"><b>useTimer</b><span class="c">on next foreground, reconcile() re-reads ActivityKit → app stays in sync</span></div>
+        </div>
+
+        <h4 style="margin:18px 0 4px; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.4px">Kill → relaunch</h4>
+        <div class="flow-row">
+          <div class="flow-step"><b>app killed</b><span class="c">activity persists, keeps ticking natively</span></div>
+          <div class="flow-conn">→</div>
+          <div class="flow-step"><b>relaunch</b><span class="c">useTimer calls getActiveSessions()</span></div>
+          <div class="flow-conn">→</div>
+          <div class="flow-step"><b>adopt or clear</b><span class="c">restore the surviving session; end any extras</span></div>
+        </div>
+      </section>
+
+      <section>
+        <p class="sub" style="margin-top:40px; border-top:1px solid var(--line); padding-top:20px">
+          Canonical engineering invariants live in <code>CLAUDE.md</code>; the full rationale and trade-offs are in
+          <code>DISCUSSION.md</code>. This page is a visual companion to those.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

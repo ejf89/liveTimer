@@ -19,3 +19,11 @@ export function elapsedAtPause(startAnchorSec: number, nowSec: number): number {
 export function anchorForResume(pausedElapsedSec: number, nowSec: number): number {
   return nowSec - pausedElapsedSec;
 }
+
+/**
+ * Whether a session has hit its goal and should stop. A missing or non-positive
+ * goal means "no goal" — the timer never auto-completes.
+ */
+export function hasReachedGoal(elapsedSec: number, goalSec?: number): boolean {
+  return !!goalSec && goalSec > 0 && elapsedSec >= goalSec;
+}

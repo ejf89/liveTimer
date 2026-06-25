@@ -114,14 +114,24 @@ No dead code, no commented-out blocks, no leftover Expo-module template scaffold
 generated example files we don't use.
 Run the formatters/linters before considering a change done.
 
-Goal ring (documented assumption)
+Goal ring + goal-stop (documented assumption)
 
 The spec mockup shows a progress ring on a count-up timer, which only has meaning against a target.
 Each session has an optional goalSeconds, default 300 (5:00 — a focus sprint short enough that the
-ring/bar visibly fills during a demo). The ring fills toward the goal;
-HH:MM:SS keeps counting up past it. Verify circular ProgressView(timerInterval:) actually animates
-its fill natively — if it doesn't, the lock-screen linear bar is the fallback (the mockup uses a
-bar anyway), so a finicky ring never stalls the milestone.
+ring/bar visibly fills during a demo). The ring/bar fills toward the goal.
+
+The goal is a finish line: when elapsed reaches goalSeconds the session COMPLETES and the clock
+stops at the goal value (status 'completed'). This must hold even when the app is backgrounded or
+killed, so the freeze is on-device — the widget's running Text uses Text(timerInterval:pauseTime:)
+with pauseTime = startAnchor + goal, so iOS halts the clock at the goal with no push. JS also fires
+one completion update() on crossing (never per-second) to switch the activity to its "goal reached"
+presentation. Completion is DERIVED, not a new ContentState field: isPaused && pausedElapsed >= goal
+(in Swift, hasReachedGoal(context)) reads as done, so the bridge/attributes contract is unchanged.
+A goalSeconds of 0 / nil means no goal — the timer counts on (24h-bounded, see ElapsedText).
+
+Verify circular ProgressView(timerInterval:) actually animates its fill natively — if it doesn't,
+the lock-screen linear bar is the fallback (the mockup uses a bar anyway), so a finicky ring never
+stalls the milestone.
 
 Definition of done
 
