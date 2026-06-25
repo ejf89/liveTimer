@@ -1,7 +1,7 @@
 import ActivityKit
 import Foundation
 
-/// ⚠️ SYNCED COPY — keep byte-identical to targets/widget/StudyAttributes.swift
+/// ⚠️ SYNCED COPY — keep byte-identical to targets/widget/_shared/StudyAttributes.swift
 /// (that file is the source of truth). ActivityKit matches an Activity to its widget
 /// by the attributes type name + Codable shape, so this copy (compiled into the bridge
 /// pod) and the widget copy interoperate. See CLAUDE.md invariant 3 + DISCUSSION.md.

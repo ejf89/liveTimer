@@ -90,7 +90,7 @@ simulator: `npx expo run:ios --device "iPhone 17 Pro"`.
 
 ## Using the app
 
-1. Enter a **session name**, pick a **goal** (5 / 15 / 25 / 50 min), and tap **Start New Session**
+1. Enter a **session name**, pick a **goal** (30s / 5m / 25m / 50m), and tap **Start New Session**
    → a Live Activity appears.
 2. The in-app timer counts up in **HH:MM:SS**; **Pause/Resume** and **Stop** control it. When it
    reaches the **goal** (default 5:00) the session **completes** — the clock stops at the goal and
