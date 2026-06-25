@@ -163,7 +163,9 @@ app ships a Live Activity. Viewable via SwiftUI `#Preview`. Documented in README
 ## Testing strategy
 
 1. **Pure logic → Jest** (no simulator): timer math, formatting, progress %.
-2. **Observability:** debug panel + `os_log` (read via `xcrun simctl spawn booted log stream`).
+2. **Observability:** `os_log` lifecycle logging (read via `xcrun simctl spawn booted log stream`)
+   + the `getActiveIds()` bridge method for zombie checks. (The in-app debug readout was removed
+   in the polish pass for a clean UI.)
 3. **Native behavior matrix** (screenshots as evidence):
 
 | Edge case                  | How to exercise                       | Pass criteria                           |
@@ -194,14 +196,26 @@ xcrun simctl spawn booted log stream --predicate 'process == "StudyWidget"'
 
 ## Current status
 
-**M1–M6 DONE + Stretch Tier 1 DONE — ready to submit.** Full feature set works on the iPhone 17
-Pro sim: Start → Live Activity (lock screen + all Dynamic Island presentations, on-device
-ticking); in-app HH:MM:SS; Pause freezes + "Paused"; Resume continues; Stop removes it; progress
-ring/bar toward goal; interactive lock-screen/Dynamic-Island controls via App Intent. Edge cases
-verified: killed→persists→relaunch adopts the activity; rapid start/stop → 0 zombies; backgrounded
-keeps ticking. Reproducibility verified (clean-clone test passed; README LLM-runnable). Jest tests
-for timer math green (8/8); `npm run lint` clean; swiftformat over `modules/` + `targets/`.
+**M1–M6 DONE + Stretch Tier 1 DONE + post-review polish — ready to submit.** Full feature set works
+on the iPhone 17 Pro sim: Start → Live Activity (lock screen + all Dynamic Island presentations,
+on-device ticking); in-app HH:MM:SS; Pause freezes + "Paused"; Resume continues; Stop removes it;
+progress ring/bar toward goal; interactive lock-screen/Dynamic-Island controls via App Intent. Edge
+cases verified: killed→persists→relaunch adopts the activity; rapid start/stop → 0 zombies;
+backgrounded keeps ticking. Reproducibility verified (clean-clone: npm i → prebuild → run:ios, all
+clean). Jest green (10/10); `npm run lint` clean; swiftformat over `modules/` + `targets/`.
 
-Final cleanup pass: removed the unused `expo-haptics` dependency, removed the unrelated
-`livekit-realtime-challenge.md` spec, and fixed the goal-default doc drift in CLAUDE.md (300s).
-**Next:** commit the cleanup + push.
+Post-review polish (this round, all on sim + pushed):
+
+- **Goal-stop completion:** the goal is a finish line — timer stops + completes at goalSeconds
+  (status `completed`, "Goal reached"). On-device freeze via `Text(timerInterval:pauseTime:)` (stops
+  at goal even backgrounded/killed); JS pushes one completion update. Verified: froze at the goal.
+- **Goal/duration picker** on the start screen (30s / 5m / 25m / 50m; 30s for a fast goal-hit demo).
+- **Session name** starts empty with a "Name your study session" placeholder.
+- **Lock-screen `1:--` fix:** bounded the running `Text(timerInterval:)` to the goal so it reserves
+  only the width it needs (the 24h range degraded the seconds in the lock-screen snapshot).
+- **Removed the in-app debug readout** + its state machinery (the `getActiveIds` API is kept).
+- **`docs/architecture.html`** visual walkthrough (linked from README); SwiftUI `#Previews` for all
+  Live Activity presentations incl. the minimal Dynamic Island.
+
+Earlier cleanup: removed unused `expo-haptics`, removed the unrelated `livekit-realtime-challenge.md`,
+fixed the goal-default doc drift in CLAUDE.md.
