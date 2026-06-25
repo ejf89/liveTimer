@@ -42,11 +42,21 @@ tapping them controls the timer without opening the app.
 | --- | --- |
 | <img src="docs/screenshots/di-expanded.png" width="380"> | <img src="docs/screenshots/di-expanded-paused.png" width="380"> |
 
-**Minimal** — just elapsed time. Implemented and correct, but **not runtime-photographable on a
-simulator**: iOS only renders the minimal presentation when 2+ Live Activities from _different
-apps_ are active (multiple activities from the _same_ app collapse to a single compact view —
-verified with three concurrent activities), and no stock simulator app ships a Live Activity to
-pair with. It renders in isolation via the SwiftUI `#Preview`. See [`DISCUSSION.md`](./DISCUSSION.md).
+**Minimal** — just elapsed time. _Screenshot forthcoming._ Implemented and correct, but **not
+runtime-photographable on a simulator**: iOS only renders the minimal presentation when 2+ Live
+Activities from _different apps_ are active (multiple activities from the _same_ app collapse to a
+single compact view — re-confirmed empirically with several concurrent activities), and no stock
+simulator app ships a Live Activity to pair with.
+
+Two ways to capture it:
+
+- **SwiftUI `#Preview`** — `targets/widget/StudyLiveActivity.swift` defines a `#Preview` for every
+  presentation, including `.dynamicIsland(.minimal)`, viewable in Xcode's canvas.
+- **A physical device** — run alongside another app's Live Activity (e.g. the built-in Clock
+  timer, which creates one on-device); the Dynamic Island then collapses both to the minimal
+  presentation, which can be screenshotted.
+
+See [`DISCUSSION.md`](./DISCUSSION.md) for the platform details.
 
 ## Prerequisites
 
