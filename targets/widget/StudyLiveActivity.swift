@@ -47,12 +47,8 @@ struct StudyLiveActivity: Widget {
                                     .layoutPriority(1)
                                 // Compact (icon-only, small) controls so the buttons fit the
                                 // expanded island's height without clipping its rounded bottom.
-                                if #available(iOS 17.0, *) {
-                                    TimerControls(
-                                        context: context,
-                                        compact: true,
-                                        goalReached: hasReachedGoal(context)
-                                    )
+                                if #available(iOS 17.0, *), !hasReachedGoal(context) {
+                                    TimerControls(context: context, compact: true)
                                 }
                             }
                             Spacer(minLength: 8)
@@ -126,8 +122,10 @@ private struct LockScreenView: View {
                 .foregroundStyle(hasReachedGoal(context) ? .green : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             GoalProgressBar(context: context)
-            if #available(iOS 17.0, *) {
-                TimerControls(context: context, goalReached: hasReachedGoal(context))
+            // At the goal the session is complete — hide the controls (nothing left to
+            // pause/resume/stop); the lock screen just shows the "Goal reached" state.
+            if #available(iOS 17.0, *), !hasReachedGoal(context) {
+                TimerControls(context: context)
                     .padding(.top, 2)
             }
         }
@@ -229,8 +227,6 @@ private struct TimerControls: View {
     let context: ActivityViewContext<StudyAttributes>
     /// Island uses icon-only/small controls (tight height); lock screen uses full labels.
     var compact = false
-    /// Once the goal is reached the session is finished, so only Stop is offered.
-    var goalReached = false
 
     var body: some View {
         // `.labelStyle` takes a concrete style type, so the icon-only vs. labelled choice
@@ -245,18 +241,16 @@ private struct TimerControls: View {
 
     private var controlStack: some View {
         HStack(spacing: compact ? 8 : 10) {
-            if !goalReached {
-                if context.state.isPaused {
-                    Button(intent: TimerControlIntent(action: "resume", activityId: context.activityID)) {
-                        Label("Resume", systemImage: "play.fill")
-                    }
-                    .tint(.green)
-                } else {
-                    Button(intent: TimerControlIntent(action: "pause", activityId: context.activityID)) {
-                        Label("Pause", systemImage: "pause.fill")
-                    }
-                    .tint(.orange)
+            if context.state.isPaused {
+                Button(intent: TimerControlIntent(action: "resume", activityId: context.activityID)) {
+                    Label("Resume", systemImage: "play.fill")
                 }
+                .tint(.green)
+            } else {
+                Button(intent: TimerControlIntent(action: "pause", activityId: context.activityID)) {
+                    Label("Pause", systemImage: "pause.fill")
+                }
+                .tint(.orange)
             }
             Button(intent: TimerControlIntent(action: "stop", activityId: context.activityID)) {
                 Label("Stop", systemImage: "stop.fill")
