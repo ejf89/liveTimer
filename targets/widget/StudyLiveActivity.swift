@@ -65,22 +65,20 @@ struct StudyLiveActivity: Widget {
                     .padding(.horizontal, 6)
                 }
             } compactLeading: {
-                // Spec: compact shows the (truncated) session name. The slot flanking the
-                // camera is narrow, so cap the width and let it truncate — the full,
-                // untruncated name lives in the expanded + lock-screen views.
-                HStack(spacing: 3) {
-                    if hasReachedGoal(context) {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    } else if context.state.isPaused {
-                        Image(systemName: "pause.fill").foregroundStyle(.orange)
-                    }
+                // Spec: compact shows the (truncated) session name + time. The goal-progress
+                // ring leads, with the truncated name to its right; the time fills the trailing
+                // slot. The full, untruncated name is in the expanded + lock-screen views.
+                HStack(spacing: 4) {
+                    ProgressRing(context: context, lineWidth: 2.5, glyphFont: .system(size: 8, weight: .bold))
+                        .frame(width: 18, height: 18)
                     Text(context.attributes.sessionName)
                         .lineLimit(1)
-                        .frame(maxWidth: 62)
+                        .frame(maxWidth: 50)
                 }
             } compactTrailing: {
                 ElapsedText(state: context.state, goalSeconds: context.attributes.goalSeconds)
                     .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
                     .foregroundStyle(
                         hasReachedGoal(context) ? .green : (context.state.isPaused ? .orange : .primary)
                     )
@@ -125,7 +123,6 @@ private struct LockScreenView: View {
             ElapsedText(state: context.state, goalSeconds: context.attributes.goalSeconds)
                 .font(.system(size: 30, weight: .semibold, design: .rounded))
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
                 .foregroundStyle(hasReachedGoal(context) ? .green : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             GoalProgressBar(context: context)
@@ -196,6 +193,10 @@ private struct GoalProgressBar: View {
 @available(iOS 16.2, *)
 private struct ProgressRing: View {
     let context: ActivityViewContext<StudyAttributes>
+    /// Stroke width — thinner in the compact slot, thicker in the expanded island.
+    var lineWidth: CGFloat = 6
+    /// Center glyph size — scales down for the compact ring.
+    var glyphFont: Font = .caption
 
     private var progress: Double {
         guard let goal = context.attributes.goalSeconds, goal > 0 else { return 0 }
@@ -209,13 +210,13 @@ private struct ProgressRing: View {
         let reached = hasReachedGoal(context)
         let tint: Color = reached ? .green : .orange
         ZStack {
-            Circle().stroke(tint.opacity(0.25), lineWidth: 6)
+            Circle().stroke(tint.opacity(0.25), lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: progress)
-                .stroke(tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Image(systemName: reached ? "checkmark" : (context.state.isPaused ? "pause.fill" : "book.closed.fill"))
-                .font(.caption)
+                .font(glyphFont)
                 .foregroundStyle(tint)
         }
     }
