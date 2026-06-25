@@ -85,9 +85,13 @@ struct StudyLiveActivity: Widget {
                         hasReachedGoal(context) ? .green : (context.state.isPaused ? .orange : .primary)
                     )
             } minimal: {
-                // Minimal: just the elapsed time.
+                // Minimal: just the elapsed time. The slot is extremely narrow (the system
+                // reserves only a glyph's width), so scale the text down to fit rather than
+                // letting it truncate to "0:…".
                 ElapsedText(state: context.state, goalSeconds: context.attributes.goalSeconds)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .foregroundStyle(hasReachedGoal(context) ? .green : .primary)
             }
             .keylineTint(.orange)

@@ -155,10 +155,12 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [ ] **Tier 2:** goal-reached `alertConfiguration` + haptic
 - [ ] **Tier 3 (discuss only):** remote push updates (APNs) for scale; session history
 
-**Minimal Dynamic Island note:** implemented + correct, but not runtime-photographable on the
-simulator — iOS only shows the minimal presentation for 2+ activities from _different apps_
-(same-app activities collapse to one compact view; verified with 3 concurrent), and no stock sim
-app ships a Live Activity. Viewable via SwiftUI `#Preview`. Documented in README + DISCUSSION.
+**Minimal Dynamic Island note:** captured on a **physical device** alongside a Clock-app Live
+Activity (screenshot in README). iOS only shows the minimal presentation for 2+ activities from
+_different apps_ (same-app activities collapse to one compact view; verified with several
+concurrent), and the simulator has no stock app shipping a Live Activity to pair with — so it's a
+device-only capture (also viewable via SwiftUI `#Preview`). The tiny slot uses `minimumScaleFactor`
+so the time scales to fit instead of truncating.
 
 ## Testing strategy
 

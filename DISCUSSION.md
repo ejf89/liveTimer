@@ -82,11 +82,13 @@ Key choices:
   to the **React Native UI** (§1) and leaves the Live Activity format open (§2/§5) — exactly
   because the native timer can't be padded — so the app keeps `HH:MM:SS` and the activity uses
   the native shape.
-- **The minimal Dynamic Island can't be exercised on the simulator.** iOS only shows the minimal
+- **The minimal Dynamic Island only renders with two apps' Live Activities.** iOS shows the minimal
   presentation when two Live Activities from *different apps* are active; multiple activities from
-  the *same* app collapse to one compact view (verified with three concurrent activities). With no
-  stock app shipping a Live Activity on the sim (no Clock app), minimal is only viewable via an
-  Xcode `#Preview`. It's implemented and correct; it just isn't runtime-photographable here.
+  the *same* app collapse to one compact view (verified with several concurrent activities). The
+  simulator has no stock app that ships a Live Activity to pair with, so minimal can't be captured
+  there — it's screenshotted on a **physical device** alongside a Clock-app timer (see README), and
+  also renders in an Xcode `#Preview`. The minimal slot is tiny, so the elapsed time uses
+  `minimumScaleFactor` to scale down to fit rather than truncate.
 - Minor: `Exception` subclasses must restate `@unchecked Sendable`; an early `expo run:ios` ran
   from a stale `cd ios` working directory.
 
