@@ -11,7 +11,7 @@ invariants live in `CLAUDE.md`.
 
 1. **JS/TS** — `App.tsx`, `hooks/`, `lib/`, and the module's `index.ts` (the typed API).
 2. **Bridge pod** — `modules/study-timer/ios/` — a hand-written Expo module (CocoaPod) that
-   exposes `start/update/end/endAll/getActiveIds/getActiveSessions` to JS and calls ActivityKit.
+   exposes `start/update/end/endAll/getActiveSessions` to JS and calls ActivityKit.
 3. **App target** — the Expo app + the `_shared/` Swift (the App Intent's `perform()` runs here).
 4. **Widget extension** — SwiftUI lock-screen + Dynamic Island UI; references the App Intent.
 
@@ -23,7 +23,9 @@ Key choices:
   (pause/resume). This single decision drives the real-time, background, and battery behavior.
 - **JS owns the time math via a `startAnchor`** (epoch seconds = now − accumulatedElapsed),
   never a stored counter. Pause freezes `pausedElapsed`; resume re-anchors. The same math is
-  pure-tested (`lib/timer.ts`) and mirrored in Swift for the interactive intent.
+  pure-tested (`lib/timer.ts`) and mirrored **once** in Swift (`_shared/TimerMath.swift`, shared by
+  the widget and the App Intent — one native copy, not three). The JS↔Swift split is the only
+  duplication that remains, and it's inherent: the App Intent runs with no JS runtime.
 - **Hand-written bridge**, not the `expo-live-activity` package — owning the bridge is the point.
 - **`@bacons/apple-targets`** generates the widget target at `prebuild`, so the whole native
   project (`ios/`) is reproducible from a clean checkout (`ios/` is gitignored).
@@ -43,7 +45,11 @@ Key choices:
   per-second) to switch the activity to its "goal reached" look. Completion is *derived*
   (`isPaused && pausedElapsed >= goal`), so the `StudyAttributes` contract stayed unchanged — at the
   cost that a purely-backgrounded app shows the time freeze + full bar at the goal but only gets the
-  textual "goal reached" badge once it next becomes active and pushes the update.
+  textual "goal reached" badge once it next becomes active and pushes the update. Once "Goal reached"
+  shows, the activity **auto-clears** ~2s later (spec: "disappears when the timer stops") — via a JS
+  timer when foreground, or on the next foreground if the goal elapsed in the background. Clearing it
+  at the exact goal instant while backgrounded/killed isn't possible without a push (no background
+  code runs); manual **Stop** (in-app or the lock-screen App Intent) clears it in every state.
 
 ## What was hardest
 
@@ -89,17 +95,32 @@ Key choices:
   there — it's screenshotted on a **physical device** alongside a Clock-app timer (see README), and
   also renders in an Xcode `#Preview`. The minimal slot is tiny, so the elapsed time uses
   `minimumScaleFactor` to scale down to fit rather than truncate.
+- **A custom `ProgressViewStyle` doesn't animate in a Live Activity.** The expanded Dynamic Island
+  goal ring first used a *custom* circular style fed by `ProgressView(timerInterval:)` — it rendered
+  once and froze (the arc never grew). Only the **built-in** styles receive the system's live timer
+  updates; the fix is the built-in `.circular` style on `ProgressView(timerInterval:countsDown:false)`,
+  which fills on-device like the Clock app. (A `Date()`-based `Circle().trim` snapshot fails the same
+  way — frozen at the last push, since WidgetKit renders from the last-update snapshot.)
+- **An entitlement that was never used.** The App Group was wired up front for the interactive
+  intent, but the intent shares state through ActivityKit's own activity store (`Activity.activities`),
+  not the group — so it was dead weight that also forced a *paid* Apple account for a clean run.
+  Removed; a drift-guard test now also enforces the two-`StudyAttributes`-copies invariant in CI.
 - Minor: `Exception` subclasses must restate `@unchecked Sendable`; an early `expo run:ios` ran
   from a stale `cd ios` working directory.
 
 ## What would break at scale / what I'd improve
 
-- **Server-driven updates:** today updates are local. Driving a Live Activity from a backend
-  (e.g. a shared "study room") needs ActivityKit **push tokens + APNs**; the bridge would
-  register for `pushType: .token` and report the token to the server.
+- **Server-driven updates:** today updates are local (`pushType: nil`). Driving a Live Activity from
+  a backend (e.g. a shared "study room") needs ActivityKit **push tokens + APNs**; the bridge would
+  register for `pushType: .token` and report the token to the server. The same mechanism is the *only*
+  way to update/end the activity while the app is backgrounded or killed — dismissing exactly at the
+  goal in your pocket, or true end-on-kill — because no local code runs then. So background dismissal
+  is inherently a push feature, not a local one.
 - **One source of truth for `StudyAttributes`:** it currently exists as two source files (the
-  `_shared` copy compiled into app+widget, and the bridge-pod copy) kept in sync by hand. A local
-  Swift Package depended on by the pod, app, and widget would remove the duplication entirely.
+  `_shared` copy compiled into app+widget, and the bridge-pod copy) kept in sync by hand. A drift
+  guard (`lib/attributesSync.test.ts`) now fails the Jest run if the two structs diverge, so the
+  hand-sync can't silently rot; a local Swift Package depended on by the pod, app, and widget would
+  remove the duplication entirely.
 - **Goal as a first-class input** (currently a default), and **session history/stats** persisted
   across launches.
 - **Home Screen / Control Center widgets** reusing the same attributes — the widget extension is

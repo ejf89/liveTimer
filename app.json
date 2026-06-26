@@ -12,9 +12,6 @@
       "bundleIdentifier": "com.ejf89.livetimer",
       "infoPlist": {
         "NSSupportsLiveActivities": true
-      },
-      "entitlements": {
-        "com.apple.security.application-groups": ["group.com.ejf89.livetimer"]
       }
     },
     "android": {

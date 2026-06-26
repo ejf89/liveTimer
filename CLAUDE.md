@@ -6,7 +6,7 @@ Study/focus timer for iOS (React Native + Expo) that drives a native Live Activi
 lock screen and Dynamic Island. RN owns the timer; the Swift/SwiftUI widget reflects its state.
 
 Repo: git@github.com:ejf89/liveTimer.git (origin/main) · Working dir: /Users/ericfarber/Development/boldvoice
-Bundle id: com.ejf89.livetimer · App Group: group.com.ejf89.livetimer
+Bundle id: com.ejf89.livetimer
 
 Stack
 
@@ -18,8 +18,10 @@ iOS floor: 16.2+ (Live Activities API). All ActivityKit call sites are @availabl
 We do not use the prebuilt expo-live-activity package. The point of this project is the
 bridge; building it ourselves is the deliverable. Don't swap it in.
 
-The App Group is wired for the stretch interactive-intent work (pausing from the lock screen).
-The core start/update/end path does not need it — don't make core logic depend on it.
+No App Group. The interactive intent (pausing from the lock screen) shares state through
+ActivityKit's own activity store (Activity<StudyAttributes>.activities), not a shared container —
+so no App Group entitlement (and no paid Apple account) is required. Don't reintroduce one unless a
+real cross-process need appears (e.g. a Home Screen widget reading session history).
 
 Commands
 
@@ -63,7 +65,7 @@ StudyTimer.start({ id, name, startAnchor, goalSeconds }): Promise<string> // id 
 StudyTimer.update({ id, isPaused, startAnchor, pausedElapsed }): Promise<void>
 StudyTimer.end({ id }): Promise<void>
 StudyTimer.endAll(): Promise<void> // zombie cleanup
-StudyTimer.getActiveIds(): Promise<string[]>
+StudyTimer.getActiveSessions(): Promise<ActiveSession[]> // full state, for launch/foreground reconcile
 
 Critical invariants — read before touching native code
 
@@ -81,18 +83,24 @@ Running → widget ticks from startAnchor.
 Pause → set pausedElapsed = now − startAnchor; widget shows frozen pausedElapsed + "Paused".
 Resume → set startAnchor = now − pausedElapsed; widget resumes ticking correctly.
 
-StudyAttributes must stay byte-identical between targets/widget/\_shared/ and
-modules/study-timer/ios/. ActivityKit matches the activity by type name + Codable shape
-across modules. The widget copy is the source of truth; the module copy is synced (header note
-on both). Prefer exactly two copies. \_shared/ currently also gives the widget copy
-app-target membership — in M2, if no app-target Swift imports StudyAttributes, move it out of
-\_shared/ to plain widget membership so there are two copies, not three.
+StudyAttributes must declare the same struct shape in both copies (targets/widget/\_shared/ and
+modules/study-timer/ios/) — comments may differ, the declaration may not. ActivityKit matches the
+activity by type name + Codable shape across modules. The widget copy is the source of truth; the
+module copy is synced (header note on both). A drift guard (lib/attributesSync.test.ts) compares the
+two struct bodies and fails the Jest run if they diverge, so the hand-sync can't silently rot.
+Prefer exactly two copies. \_shared/ gives the widget copy app-target membership because the App
+Intent (TimerControlIntent, in \_shared/) needs StudyAttributes visible in the app target too — so
+it stays in \_shared/ rather than moving to widget-only membership.
 Guard the API. Every ActivityKit call site is @available(iOS 16.2, \*) with a runtime
 if #available check. The Android path is the stub and resolves to no-ops.
 No zombie activities. One activity at a time. On start, end any existing first. On stop,
 end() the tracked id and endAll() sweeps Activity<StudyAttributes>.activities for
 strays. Use an immediate/ended dismissal so it leaves the lock screen promptly. Rapid start/stop
-must not orphan an activity — serialize on the main actor and await the end before the next start.
+must not orphan an activity: the JS bridge guards start() against re-entrancy (a second start while
+one is in flight is ignored), start ends any existing first, and stop sweeps endAll() — so two rapid
+starts can't both create an activity. Verified: 8× rapid start/stop leaves 0 activities (paired
+start/end in os_log). The RN app is the only caller; an actor-isolated controller is the native
+defense-in-depth version if other callers ever appear.
 App killed → activity persists and keeps ticking. This is deliberate (native ticking makes
 it free and it demos better than ending on kill). On relaunch, reconcile: end orphaned activities
 that don't match a restored session. Document this in README + DISCUSSION.
@@ -105,8 +113,8 @@ no any, discriminated unions for state). Don't transliterate one into the other.
 
 Name for the concept, not the representation. accumulatedElapsed, startAnchor,
 isPaused, goalSeconds — not data, val, t, flag, temp.
-Session state is a union, not loose booleans: 'idle' | 'running' | 'paused'. UI and bridge
-branch on it exhaustively.
+Session state is a union, not loose booleans: 'idle' | 'running' | 'paused' | 'completed'. UI and
+bridge branch on it exhaustively.
 Functions are verb-first and do one thing: startSession, pauseSession, endLiveActivity.
 Comment the why of platform quirks, not the what. Explain the timerInterval choice or a
 @available guard; never // loop over the array.
@@ -129,9 +137,18 @@ presentation. Completion is DERIVED, not a new ContentState field: isPaused && p
 (in Swift, hasReachedGoal(context)) reads as done, so the bridge/attributes contract is unchanged.
 A goalSeconds of 0 / nil means no goal — the timer counts on (24h-bounded, see ElapsedText).
 
-Verify circular ProgressView(timerInterval:) actually animates its fill natively — if it doesn't,
-the lock-screen linear bar is the fallback (the mockup uses a bar anyway), so a finicky ring never
-stalls the milestone.
+Goal auto-clear (spec: "disappears when the timer stops"). After "Goal reached" shows, JS clears the
+Live Activity ~2s later (GOAL_CLEAR_DELAY_MS) and returns to idle. This is JS-driven, so it only
+fires foreground; if the goal is crossed while backgrounded, JS is suspended — the activity freezes
+on "Goal reached" and clears on next foreground (reconcile schedules the same 2s clear). A true
+clear-at-goal while backgrounded/killed needs APNs (pushType: .token + a server), the documented
+scale step. Manual Stop (in-app or the lock-screen App Intent) clears it in every state.
+
+The expanded Dynamic Island ring DOES animate: use the BUILT-IN .circular ProgressViewStyle on a
+ProgressView(timerInterval:countsDown:false) — the system fills it live on-device, like Clock. A
+CUSTOM ProgressViewStyle does NOT receive the live timer updates (it renders once and freezes — this
+was a real miss; see DISCUSSION). The lock-screen linear bar uses the same timerInterval mechanism.
+Paused / at-goal / no-goal fall back to a static determinate ring (nothing to animate).
 
 Definition of done
 
@@ -142,7 +159,7 @@ Running → timer advances live with no per-second pushes
 Pause → frozen time + "Paused"; Resume → continues from the right value
 Stop → Live Activity disappears
 Backgrounded / killed → keeps ticking; relaunch reconciles
-Rapid start/stop → getActiveIds() returns 0, no zombies
+Rapid start/stop → 0 activities remain (paired start/end in os_log), no zombies
 Dynamic Island: compact (name + time), expanded (name, time, progress ring), minimal (time)
 
 Notes

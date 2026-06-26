@@ -57,11 +57,6 @@ public class StudyTimerModule: Module {
             }
         }
 
-        AsyncFunction("getActiveIds") { () -> [String] in
-            guard #available(iOS 16.2, *) else { return [] }
-            return LiveActivityController.activeIds()
-        }
-
         // Full state of running activities, for launch reconciliation (adopt a
         // Live Activity that survived an app kill).
         AsyncFunction("getActiveSessions") { () -> [[String: Any]] in
@@ -159,10 +154,6 @@ enum LiveActivityController {
         if !activities.isEmpty {
             log.info("endAll cleared=\(activities.count)")
         }
-    }
-
-    static func activeIds() -> [String] {
-        Activity<StudyAttributes>.activities.map { $0.id }
     }
 
     static func activeSessions() -> [[String: Any]] {

@@ -1,10 +1,11 @@
 import ActivityKit
 import Foundation
 
-/// ⚠️ SYNCED COPY — keep byte-identical to targets/widget/_shared/StudyAttributes.swift
-/// (that file is the source of truth). ActivityKit matches an Activity to its widget
-/// by the attributes type name + Codable shape, so this copy (compiled into the bridge
-/// pod) and the widget copy interoperate. See CLAUDE.md invariant 3 + DISCUSSION.md.
+/// ⚠️ SYNCED COPY of targets/widget/_shared/StudyAttributes.swift (the source of truth).
+/// ActivityKit matches an Activity to its widget by the attributes type name + Codable
+/// shape, so this copy (compiled into the bridge pod) and the widget copy must declare the
+/// SAME struct shape — comments may differ, the declaration may not. A drift guard
+/// (lib/attributesSync.test.ts) fails CI if the shapes diverge. See CLAUDE.md invariant 3.
 struct StudyAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         /// Effective start instant for the count-up timer (now - accumulatedElapsed).

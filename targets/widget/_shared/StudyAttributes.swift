@@ -9,7 +9,9 @@ import Foundation
 /// Activity to its widget by the attributes type name + Codable shape, so the two
 /// compiled copies interoperate. See DISCUSSION.md for this trade-off.
 ///
-/// ⚠️ KEEP IN SYNC with modules/study-timer/ios/StudyAttributes.swift
+/// ⚠️ KEEP IN SYNC with modules/study-timer/ios/StudyAttributes.swift — the two copies must
+/// declare the same struct shape (comments may differ). A drift guard
+/// (lib/attributesSync.test.ts) fails CI if they diverge.
 struct StudyAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         /// Effective start instant for the count-up timer (now - accumulatedElapsed).

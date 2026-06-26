@@ -108,7 +108,7 @@ modules/study-timer/             hand-written Expo module (the RN <-> ActivityKi
   index.ts                       typed TS API the app calls
   index.android.ts / .web.ts     no-op stubs (Live Activities are iOS-only)
   src/StudyTimer.types.ts        shared TS types
-  ios/StudyTimerModule.swift     ActivityKit: areEnabled/start/update/end/endAll/getActiveIds
+  ios/StudyTimerModule.swift     ActivityKit: areEnabled/start/update/end/endAll/getActiveSessions
   ios/StudyAttributes.swift      ActivityAttributes (synced copy — see CLAUDE.md)
 targets/widget/                  SwiftUI Widget Extension (via @bacons/apple-targets)
   StudyLiveActivity.swift        lock screen + Dynamic Island (compact/expanded/minimal)
@@ -129,8 +129,9 @@ Simulator is sufficient for the full feature set. To run on a real iPhone:
    **both** the app target and `StudyWidget`), or add `ios.appleTeamId` to `app.json`.
 2. `npx expo run:ios --device` and select your iPhone.
 
-A **free** Apple ID works for development installs; the **App Group** capability (used only by the
-optional interactive-controls stretch) needs a **paid** account — the core timer does not require it.
+A **free** Apple ID works for development installs — there are no special capabilities to provision.
+The interactive lock-screen controls share state through ActivityKit's own activity store, so no App
+Group (and no paid account) is required.
 
 ## Troubleshooting
 

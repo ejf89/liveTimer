@@ -8,6 +8,5 @@ export const StudyTimer: StudyTimerApi = {
   update: async (_options: UpdateOptions) => {},
   end: async (_id: string) => {},
   endAll: async () => {},
-  getActiveIds: async () => [],
   getActiveSessions: async () => [],
 };

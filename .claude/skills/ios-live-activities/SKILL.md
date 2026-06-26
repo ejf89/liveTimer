@@ -143,7 +143,7 @@ public class StudyTimerModule: Module {
 
     AsyncFunction("end") { (id: String) in /* ... */ }.runOnQueue(.main)
     AsyncFunction("endAll") { () in /* ... */ }.runOnQueue(.main)
-    AsyncFunction("getActiveIds") { () -> [String] in /* ... */ }
+    AsyncFunction("getActiveSessions") { () -> [[String: Any]] in /* ... */ }
   }
 }
 
@@ -172,8 +172,9 @@ struct StartOptions: Record {
 - **Three copies of `StudyAttributes`:** `_shared/` links to app target _and_ widget. If no
   app-target Swift imports it, move it to plain `targets/widget/` membership → exactly two
   copies (widget + module pod).
-- **Zombies after rapid start/stop:** not awaiting `end` before the next `start`, or not
-  serializing on the main actor. `getActiveIds()` must return `[]` after a stop.
+- **Zombies after rapid start/stop:** not awaiting `end` before the next `start`, not guarding
+  `start()` against re-entrancy, or not sweeping `endAll()` on stop. Verify with paired
+  start/end lines in os_log; 0 activities must remain after a stop.
 - **Live Activity won't appear:** missing `NSSupportsLiveActivities` (main app Info.plist) or
   user disabled Live Activities (`areActivitiesEnabled` is false).
 

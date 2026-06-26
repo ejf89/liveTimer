@@ -34,7 +34,7 @@ struct TimerControlIntent: LiveActivityIntent {
 
         switch action {
         case "pause":
-            let pausedElapsed = now.timeIntervalSince(state.startAnchor)
+            let pausedElapsed = state.elapsed(asOf: now)
             let next = StudyAttributes.ContentState(
                 startAnchor: state.startAnchor,
                 isPaused: true,

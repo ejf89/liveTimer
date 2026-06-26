@@ -39,8 +39,6 @@ export type StudyTimerApi = {
   end(id: string): Promise<void>;
   /** End every live activity (zombie sweep). */
   endAll(): Promise<void>;
-  /** Ids of all currently-running activities. */
-  getActiveIds(): Promise<string[]>;
   /** Full state of all running activities (for adopting one after an app relaunch). */
   getActiveSessions(): Promise<ActiveSession[]>;
 };

@@ -58,7 +58,7 @@ StudyTimer.start({ id, name, startAnchor, goalSeconds }): Promise<string>
 StudyTimer.update({ id, isPaused, startAnchor, pausedElapsed }): Promise<void>
 StudyTimer.end({ id }): Promise<void>
 StudyTimer.endAll(): Promise<void>          // zombie cleanup
-StudyTimer.getActiveIds(): Promise<string[]>
+StudyTimer.getActiveSessions(): Promise<ActiveSession[]>  // full state, for reconcile
 ```
 
 ## Milestones / To-dos
@@ -82,7 +82,7 @@ StudyTimer.getActiveIds(): Promise<string[]>
 - [x] Copy `StudyAttributes.swift` into `modules/study-timer/ios/` (KEEP IN SYNC header)
 - [x] Move `_shared/StudyAttributes.swift` → widget-only membership (two copies, not three — CLAUDE.md inv.3)
 - [x] Add `index.android.ts` + `index.web.ts` no-op stubs
-- [x] Implement full bridge in `StudyTimerModule.swift` (areEnabled/start/update/end/endAll/getActiveIds, @available 16.2, Promise+Task pattern)
+- [x] Implement full bridge in `StudyTimerModule.swift` (areEnabled/start/update/end/endAll/getActiveSessions, @available 16.2, Promise+Task pattern)
 - [x] Typed TS API (`index.ts` + `src/StudyTimer.types.ts`)
 - [x] RN Start/Stop buttons + URL control (`livetimer://start|stop`) → Live Activity appears / disappears
 - [x] Verified on sim (idb): lock-screen banner + Dynamic Island compact, on-device ticking, Stop clears it
@@ -165,9 +165,10 @@ so the time scales to fit instead of truncating.
 ## Testing strategy
 
 1. **Pure logic → Jest** (no simulator): timer math, formatting, progress %.
-2. **Observability:** `os_log` lifecycle logging (read via `xcrun simctl spawn booted log stream`)
-   + the `getActiveIds()` bridge method for zombie checks. (The in-app debug readout was removed
-   in the polish pass for a clean UI.)
+2. **Observability:** `os_log` lifecycle logging (read via `xcrun simctl spawn booted log show --info`)
+   — paired start/end/endAll lines prove no-zombie behavior after rapid start/stop. (The in-app debug
+   readout + the `getActiveIds` bridge method were removed in the cleanup pass; `getActiveSessions`
+   drives reconcile.)
 3. **Native behavior matrix** (screenshots as evidence):
 
 | Edge case                  | How to exercise                       | Pass criteria                           |
@@ -176,7 +177,7 @@ so the time scales to fit instead of truncating.
 | Pause/resume reflected     | pause → screenshot                    | frozen time + "Paused"                  |
 | Backgrounded keeps showing | home + lock → screenshot              | still ticking                           |
 | App killed                 | `simctl terminate <bundle>`           | ends gracefully / persists (documented) |
-| Rapid start/stop           | loop start/stop ×N → `getActiveIds()` | count → 0, no zombies                   |
+| Rapid start/stop           | loop start/stop ×N → os_log           | paired start/end → 0, no zombies        |
 | Relaunch reconciliation    | kill → relaunch                       | orphans ended / session restored        |
 
 ## How to run (current state)
@@ -215,9 +216,29 @@ Post-review polish (this round, all on sim + pushed):
 - **Session name** starts empty with a "Name your study session" placeholder.
 - **Lock-screen `1:--` fix:** bounded the running `Text(timerInterval:)` to the goal so it reserves
   only the width it needs (the 24h range degraded the seconds in the lock-screen snapshot).
-- **Removed the in-app debug readout** + its state machinery (the `getActiveIds` API is kept).
+- **Removed the in-app debug readout** + its state machinery (and later the unused `getActiveIds`
+  bridge method — `getActiveSessions` covers reconcile).
 - **`docs/architecture.html`** visual walkthrough (linked from README); SwiftUI `#Previews` for all
   Live Activity presentations incl. the minimal Dynamic Island.
+
+UX tweaks for stricter must-have compliance (pre-meeting round, verified on sim):
+
+- **Compact Dynamic Island = "name (truncated) + time" exactly (§5).** Raised the name width cap so it
+  truncates much later (was clipping at ~3 chars), and removed the non-animating progress indicator
+  from the compact slot — compact is now just the status glyph + name + time, per spec.
+- **Expanded Dynamic Island ring actually animates (§5).** The goal ring was a static snapshot; it now
+  fills live on-device via the built-in `.circular` style on `ProgressView(timerInterval:)` (a custom
+  ProgressViewStyle doesn't receive the system's live timer updates — that was the bug).
+- **"Disappears when timer stops" (§2).** Goal completion now auto-clears the Live Activity ~2s after
+  "Goal reached" (foreground via a JS timer; on next foreground if the goal elapsed backgrounded).
+  Manual Stop already cleared it in every state; true clear-at-goal while backgrounded needs APNs.
+- **"No zombie activities" (§4).** Hardened rapid start/stop: the bridge guards `start()` against
+  re-entrancy and `stop()` sweeps `endAll()`. Verified 8× rapid start/stop → 0 activities (paired
+  start/end in os_log).
+
+Pre-meeting cleanup: removed the unused App Group entitlement (the interactive intent uses
+ActivityKit's store, not the group; also drops the paid-account requirement); collapsed the Swift
+timer math into one shared `_shared/TimerMath.swift`; added a `StudyAttributes` drift-guard test.
 
 Earlier cleanup: removed unused `expo-haptics`, removed the unrelated `livekit-realtime-challenge.md`,
 fixed the goal-default doc drift in CLAUDE.md.

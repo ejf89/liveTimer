@@ -61,15 +61,22 @@ struct StudyLiveActivity: Widget {
                     .padding(.horizontal, 6)
                 }
             } compactLeading: {
-                // Spec: compact shows the (truncated) session name + time. The goal-progress
-                // ring leads, with the truncated name to its right; the time fills the trailing
-                // slot. The full, untruncated name is in the expanded + lock-screen views.
-                HStack(spacing: 4) {
-                    ProgressRing(context: context, lineWidth: 2.5, glyphFont: .system(size: 8, weight: .bold))
-                        .frame(width: 18, height: 18)
+                // Spec: compact shows the (truncated) session name + time — nothing else. No
+                // progress here: a circular ring can't animate on-device and a linear bar would
+                // steal the name's room, so progress lives on the lock screen (animated bar) and
+                // the expanded island (ring). A small status glyph (running/paused/done) leads,
+                // then the name capped just shy of the camera so it truncates as late as it can.
+                HStack(spacing: 5) {
+                    Image(
+                        systemName: hasReachedGoal(context)
+                            ? "checkmark.circle.fill"
+                            : (context.state.isPaused ? "pause.fill" : "book.closed.fill")
+                    )
+                    .font(.system(size: 11))
+                    .foregroundStyle(hasReachedGoal(context) ? .green : .orange)
                     Text(context.attributes.sessionName)
                         .lineLimit(1)
-                        .frame(maxWidth: 50)
+                        .frame(maxWidth: 140)
                 }
             } compactTrailing: {
                 ElapsedText(state: context.state, goalSeconds: context.attributes.goalSeconds)
@@ -185,35 +192,47 @@ private struct GoalProgressBar: View {
     }
 }
 
-/// Circular goal ring for the expanded Dynamic Island. iOS has no native
-/// timer-driven circular progress, so this is a determinate snapshot evaluated at
-/// each render/update (accurate when shown; it doesn't creep between updates).
+/// Circular goal ring for the expanded Dynamic Island. While running it uses the built-in
+/// `.circular` style on a `ProgressView(timerInterval:)`, which the system fills live on-device
+/// (the same native timer rendering as `Text(timerInterval:)` — a *custom* ProgressViewStyle
+/// does NOT get those updates, only the built-in styles do). Paused / at-goal / no-goal show a
+/// static determinate ring. A status glyph sits in the center.
 @available(iOS 16.2, *)
 private struct ProgressRing: View {
     let context: ActivityViewContext<StudyAttributes>
-    /// Stroke width — thinner in the compact slot, thicker in the expanded island.
+    /// Stroke width of the static (paused/at-goal) ring.
     var lineWidth: CGFloat = 6
-    /// Center glyph size — scales down for the compact ring.
+    /// Center glyph size.
     var glyphFont: Font = .caption
 
-    private var progress: Double {
+    private var snapshotProgress: Double {
         guard let goal = context.attributes.goalSeconds, goal > 0 else { return 0 }
-        let elapsed = context.state.isPaused
-            ? context.state.pausedElapsed
-            : Date().timeIntervalSince(context.state.startAnchor)
-        return min(max(elapsed / goal, 0), 1)
+        return min(max(context.state.elapsed() / goal, 0), 1)
     }
 
     var body: some View {
         let reached = hasReachedGoal(context)
         let tint: Color = reached ? .green : .orange
+        let glyph = reached ? "checkmark" : (context.state.isPaused ? "pause.fill" : "book.closed.fill")
         ZStack {
-            Circle().stroke(tint.opacity(0.25), lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            Image(systemName: reached ? "checkmark" : (context.state.isPaused ? "pause.fill" : "book.closed.fill"))
+            if let goal = context.attributes.goalSeconds, goal > 0, !context.state.isPaused, !reached {
+                // Live fill: built-in .circular style + timerInterval animates on-device, no pushes.
+                ProgressView(
+                    timerInterval: context.state.startAnchor ... (context.state.startAnchor + goal),
+                    countsDown: false,
+                    label: { EmptyView() },
+                    currentValueLabel: { EmptyView() }
+                )
+                .progressViewStyle(.circular)
+                .tint(tint)
+            } else {
+                Circle().stroke(tint.opacity(0.25), lineWidth: lineWidth)
+                Circle()
+                    .trim(from: 0, to: snapshotProgress)
+                    .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            Image(systemName: glyph)
                 .font(glyphFont)
                 .foregroundStyle(tint)
         }
@@ -270,16 +289,13 @@ func formatCompact(_ seconds: TimeInterval) -> String {
 }
 
 /// True once the session has reached its goal — the timer is at rest and the UI shows
-/// "goal reached". Derived from the existing state (a session frozen at/after its goal),
-/// so the bridge contract stays unchanged. The running clock freezes on-device via
-/// `pauseTime`, so this reads true even before the app pushes its completion update.
+/// "goal reached". Convenience over the shared `StudyAttributes.hasReachedGoal` for the
+/// widget's view-builders, which work in terms of an `ActivityViewContext`. The running
+/// clock freezes on-device via `pauseTime`, so this reads true even before the app pushes
+/// its completion update.
 @available(iOS 16.2, *)
 func hasReachedGoal(_ context: ActivityViewContext<StudyAttributes>) -> Bool {
-    guard let goal = context.attributes.goalSeconds, goal > 0 else { return false }
-    let elapsed = context.state.isPaused
-        ? context.state.pausedElapsed
-        : Date().timeIntervalSince(context.state.startAnchor)
-    return elapsed >= goal
+    context.attributes.hasReachedGoal(context.state)
 }
 
 // MARK: - Previews

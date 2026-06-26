@@ -133,6 +133,8 @@
       }
       .flow-step b { display: block; margin-bottom: 3px; }
       .flow-step .c { color: var(--muted); }
+      .flow-step .fref { display: block; margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--line); font-family: "SF Mono", ui-monospace, monospace; font-size: 10.5px; color: #ffd9a0; line-height: 1.55; }
+      .flow-step .fref .fn { color: #79c0ff; }
       .flow-conn { display: grid; place-items: center; color: var(--muted); padding: 0 8px; font-size: 18px; }
 
       .note { background: rgba(10,132,255,0.08); border: 1px solid rgba(10,132,255,0.4); border-radius: 10px; padding: 14px 16px; font-size: 13.5px; color: #c9d1d9; }
@@ -172,7 +174,7 @@
             <h3><span class="tag js">JS / TS</span> React Native app</h3>
             <div class="files mono">App.tsx · hooks/useTimer.ts · lib/timer.ts · lib/format.ts</div>
             <p>
-              Owns the <b>timer state machine</b> (<code>idle | running | paused</code>) and all the time math.
+              Owns the <b>timer state machine</b> (<code>idle | running | paused | completed</code>) and all the time math.
               A 250&nbsp;ms interval drives only the <i>in-app</i> <code>HH:MM:SS</code> readout — it never touches
               the Live Activity. State changes call the bridge.
             </p>
@@ -205,7 +207,7 @@
 
           <div class="layer">
             <h3><span class="tag swift">Swift</span> Widget extension <span class="tag ak">SwiftUI</span></h3>
-            <div class="files mono">targets/widget/StudyLiveActivity.swift · StudyWidgetBundle.swift · _shared/StudyAttributes.swift · _shared/TimerControlIntent.swift</div>
+            <div class="files mono">targets/widget/StudyLiveActivity.swift · StudyWidgetBundle.swift · _shared/StudyAttributes.swift · _shared/TimerControlIntent.swift · _shared/TimerMath.swift</div>
             <p>
               A separate process. Renders the lock-screen view + Dynamic Island (compact / expanded / minimal).
               The running clock is drawn with SwiftUI's <code>Text(timerInterval:)</code>, so <b>iOS ticks the seconds
@@ -218,7 +220,8 @@
           <b>Key insight:</b> the bridge pod and the widget extension are different binaries that never share
           code at runtime. ActivityKit links a live <code>Activity</code> to its widget purely by the
           <code>StudyAttributes</code> <i>type name</i> and its <i>Codable shape</i> — which is why the attributes
-          struct has to exist, byte-compatible, in both (see §4).
+          struct has to exist, with an identical Codable shape, in both. A drift-guard test fails if the two
+          copies diverge (see §4).
         </p>
       </section>
 
@@ -263,7 +266,6 @@
             <tr><td class="fname">update(opts)</td><td>id, isPaused, startAnchor, pausedElapsed</td><td class="ftype">Promise&lt;void&gt;</td><td>Push a real state change (pause/resume)</td></tr>
             <tr><td class="fname">end(id)</td><td>id</td><td class="ftype">Promise&lt;void&gt;</td><td>End one activity</td></tr>
             <tr><td class="fname">endAll()</td><td>—</td><td class="ftype">Promise&lt;void&gt;</td><td>Zombie sweep — end every stray</td></tr>
-            <tr><td class="fname">getActiveIds()</td><td>—</td><td class="ftype">Promise&lt;string[]&gt;</td><td>Ids of running activities (zombie check)</td></tr>
             <tr><td class="fname">getActiveSessions()</td><td>—</td><td class="ftype">Promise&lt;ActiveSession[]&gt;</td><td>Full state, for relaunch reconciliation</td></tr>
           </table>
           <p class="note" style="margin-top:14px">
@@ -343,7 +345,7 @@
           <div class="decision">
             <h4>Time from a <code>startAnchor</code>, never a stored counter</h4>
             <p>One epoch-seconds anchor is the source of truth for both the JS display and the native render.</p>
-            <span class="why">Why: no drift between two clocks, and the pure math is unit-tested in <code>lib/timer.ts</code> and mirrored in Swift.</span>
+            <span class="why">Why: no drift between two clocks. The pure math is unit-tested in <code>lib/timer.ts</code>; its one native counterpart lives in <code>_shared/TimerMath.swift</code> — used by both the widget and the App Intent — so there's a single Swift copy, not three.</span>
           </div>
 
           <div class="decision">
@@ -354,8 +356,8 @@
 
           <div class="decision">
             <h4>Two copies of <code>StudyAttributes</code></h4>
-            <p>One in the widget (<code>_shared/</code>), one in the bridge pod — kept byte-compatible by hand.</p>
-            <span class="why">Why: ActivityKit matches by type name + Codable shape across separate binaries. At scale, a shared local Swift Package would remove the duplication.</span>
+            <p>One in the widget (<code>_shared/</code>), one in the bridge pod — same Codable shape, synced by hand and enforced by a drift-guard test.</p>
+            <span class="why">Why: ActivityKit matches by type name + Codable shape across separate binaries. A Jest guard (<code>lib/attributesSync.test.ts</code>) fails if the copies diverge; at scale, a shared local Swift Package would remove the duplication entirely.</span>
           </div>
 
           <div class="decision">
@@ -366,8 +368,8 @@
 
           <div class="decision">
             <h4>No zombies — one activity, ever</h4>
-            <p><code>endAll()</code> on start; <code>end()</code> + sweep on stop; serialized on the main actor.</p>
-            <span class="why">Why: rapid start/stop or a crash mid-flight must never orphan a Live Activity. <code>getActiveIds()</code> should read 0 after a stop.</span>
+            <p><code>endAll()</code> on start collapses any strays to a single activity; <code>end(id)</code> on stop removes the tracked one.</p>
+            <span class="why">Why: rapid start/stop must never orphan a Live Activity. The bridge guards <code>start()</code> against re-entrancy and <code>stop()</code> sweeps <code>endAll()</code>; verified 8× rapid start/stop → 0 activities (paired start/end in os_log). An actor-isolated controller is the native defense-in-depth version if other callers ever appear.</span>
           </div>
 
           <div class="decision">
@@ -385,33 +387,44 @@
 
         <h4 style="margin:18px 0 4px; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.4px">Start → running</h4>
         <div class="flow-row">
-          <div class="flow-step"><b>App.tsx</b><span class="c">tap "Start"</span></div>
+          <div class="flow-step"><b>App.tsx</b><span class="c">tap "Start"</span>
+            <span class="fref"><span class="fn">App.tsx</span> → <code>startSession()</code></span></div>
           <div class="flow-conn">→</div>
-          <div class="flow-step"><b>useTimer</b><span class="c">set anchor = now, status = running</span></div>
+          <div class="flow-step"><b>useTimer</b><span class="c">set anchor = now, status = running</span>
+            <span class="fref"><span class="fn">hooks/useTimer.ts</span> → <code>start()</code><br><span class="fn">lib/timer.ts</span> (anchor math)</span></div>
           <div class="flow-conn">→</div>
-          <div class="flow-step"><b>bridge</b><span class="c">start(...) → endAll() first</span></div>
+          <div class="flow-step"><b>bridge</b><span class="c">start(...) → endAll() first</span>
+            <span class="fref"><span class="fn">modules/study-timer/index.ts</span> (TS)<br><span class="fn">…/ios/StudyTimerModule.swift</span></span></div>
           <div class="flow-conn">→</div>
-          <div class="flow-step"><b>ActivityKit</b><span class="c">Activity.request(...)</span></div>
+          <div class="flow-step"><b>ActivityKit</b><span class="c">Activity.request(...)</span>
+            <span class="fref"><span class="fn">StudyTimerModule.swift</span> → <code>LiveActivityController.start</code></span></div>
           <div class="flow-conn">→</div>
-          <div class="flow-step"><b>widget</b><span class="c">ticks from anchor on-device</span></div>
+          <div class="flow-step"><b>widget</b><span class="c">ticks from anchor on-device</span>
+            <span class="fref"><span class="fn">targets/widget/StudyLiveActivity.swift</span><br><span class="fn">_shared/StudyAttributes.swift</span></span></div>
         </div>
 
         <h4 style="margin:18px 0 4px; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.4px">Control from the lock screen (App Intent)</h4>
         <div class="flow-row">
-          <div class="flow-step"><b>Live Activity</b><span class="c">tap Pause/Stop button</span></div>
+          <div class="flow-step"><b>Live Activity</b><span class="c">tap Pause/Stop button</span>
+            <span class="fref"><span class="fn">targets/widget/StudyLiveActivity.swift</span> → <code>TimerControls</code> (<code>Button(intent:)</code>)</span></div>
           <div class="flow-conn">→</div>
-          <div class="flow-step"><b>TimerControlIntent.perform()</b><span class="c">runs in app process, no UI; mutates the activity in Swift</span></div>
+          <div class="flow-step"><b>TimerControlIntent.perform()</b><span class="c">runs in app process, no UI; mutates the activity in Swift</span>
+            <span class="fref"><span class="fn">_shared/TimerControlIntent.swift</span><br><span class="fn">_shared/TimerMath.swift</span> (elapsed/anchor math)</span></div>
           <div class="flow-conn">→</div>
-          <div class="flow-step"><b>useTimer</b><span class="c">on next foreground, reconcile() re-reads ActivityKit → app stays in sync</span></div>
+          <div class="flow-step"><b>useTimer</b><span class="c">on next foreground, reconcile() re-reads ActivityKit → app stays in sync</span>
+            <span class="fref"><span class="fn">hooks/useTimer.ts</span> → <code>reconcile()</code><br><span class="fn">StudyTimerModule.swift</span> → <code>getActiveSessions</code></span></div>
         </div>
 
         <h4 style="margin:18px 0 4px; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.4px">Kill → relaunch</h4>
         <div class="flow-row">
-          <div class="flow-step"><b>app killed</b><span class="c">activity persists, keeps ticking natively</span></div>
+          <div class="flow-step"><b>app killed</b><span class="c">activity persists, keeps ticking natively</span>
+            <span class="fref"><span class="fn">targets/widget/StudyLiveActivity.swift</span> → <code>Text(timerInterval:)</code> (on-device, no process)</span></div>
           <div class="flow-conn">→</div>
-          <div class="flow-step"><b>relaunch</b><span class="c">useTimer calls getActiveSessions()</span></div>
+          <div class="flow-step"><b>relaunch</b><span class="c">useTimer calls getActiveSessions()</span>
+            <span class="fref"><span class="fn">hooks/useTimer.ts</span> → <code>reconcile()</code> (on mount)<br><span class="fn">StudyTimerModule.swift</span> → <code>activeSessions()</code></span></div>
           <div class="flow-conn">→</div>
-          <div class="flow-step"><b>adopt or clear</b><span class="c">restore the surviving session; end any extras</span></div>
+          <div class="flow-step"><b>adopt or clear</b><span class="c">restore the surviving session; end any extras</span>
+            <span class="fref"><span class="fn">hooks/useTimer.ts</span> (adopt first, <code>end</code> extras)<br><span class="fn">StudyTimerModule.swift</span> → <code>end</code></span></div>
         </div>
       </section>
 

@@ -17,6 +17,7 @@
     "eslint-config-expo": "^56.0.4",
     "eslint-config-prettier": "^10.1.8",
     "jest": "^30.4.2",
+    "patch-package": "^8.0.1",
     "prettier": "^3.8.4",
     "typescript": "~6.0.3"
   },
@@ -27,12 +28,13 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\" --ignore-path .gitignore",
-    "test": "jest"
+    "test": "jest",
+    "postinstall": "patch-package"
   },
   "jest": {
     "testEnvironment": "node",
     "testMatch": [
-      "**/lib/**/*.test.ts"
+      "**/*.test.ts"
     ]
   },
   "private": true

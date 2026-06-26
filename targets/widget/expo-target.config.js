@@ -1,5 +1,5 @@
 /** @type {import('@bacons/apple-targets/app.plugin').ConfigFunction} */
-module.exports = (config) => ({
+module.exports = () => ({
   type: 'widget',
   name: 'StudyWidget',
   displayName: 'Study Timer',
@@ -7,9 +7,4 @@ module.exports = (config) => ({
   // need 17+, gated with @available in Swift.
   deploymentTarget: '16.2',
   frameworks: ['SwiftUI', 'WidgetKit', 'ActivityKit'],
-  entitlements: {
-    // Mirror the app's App Group so the widget can read shared state.
-    'com.apple.security.application-groups':
-      config.ios.entitlements['com.apple.security.application-groups'],
-  },
 });
